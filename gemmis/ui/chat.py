@@ -15,7 +15,7 @@ from rich.text import Text
 
 from .theme import get_current_theme
 from .effects import GhostTyper
-from .boxes import TECH_BOX
+from .boxes import TECH_BOX, CYBER_BOX
 
 
 def render_content_with_code(content: str) -> Group:
@@ -292,10 +292,10 @@ def render_chat_streaming(
 
     return Panel(
         content,
-        title=title,
-        border_style=border_color,
+        title="[bold green]NEURAL_UPLINK[/]",
+        border_style="bright_cyan",
         style=f"on {Colors.BG_DARK}",
-        box=TECH_BOX,
-        padding=(0, 1),
+        box=CYBER_BOX,
+        padding=(1, 2),
         expand=True,
     )

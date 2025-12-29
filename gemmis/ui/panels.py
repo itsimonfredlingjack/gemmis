@@ -15,7 +15,8 @@ from rich.console import Group
 from ..config import MODEL_NAME
 from .theme import get_current_theme
 from .effects import MatrixSpinner, PulseBorder, GlitchText, HexDump, animate_gradient
-from .boxes import TECH_BOX
+from .boxes import TECH_BOX, CYBER_BOX, SCAN_BOX
+from rich.table import Table
 
 
 def _get_avatar_templates() -> dict[str, str]:
@@ -282,53 +283,32 @@ def render_stats_panel(
 
     return Panel(
         content,
-        title=title_text,
-        border_style=border_style,
+        title="[bold yellow]SYSTEM_VITALS[/]",
+        border_style="bright_yellow",
         style=f"on {Colors.BG_DARK}",
-        box=box_style,
-        padding=(1, 2),
+        box=SCAN_BOX,                         # The thinner scanline-box
+        padding=(0, 1)
     )
 
 
 def render_header(connected: bool, state: str = "idle") -> Panel:
     """Render header with modern design and theme colors."""
-    Colors = get_current_theme()
-    avatar = get_avatar(state)
+    # Create a grid instead of text
+    grid = Table.grid(expand=True)
+    grid.add_column(justify="left", ratio=1)
+    grid.add_column(justify="center", ratio=1)
+    grid.add_column(justify="right", ratio=1)
 
-    # State-based styling
-    state_styles = {
-        "idle": (Colors.PRIMARY, "SYSTEM READY"),
-        "thinking": (Colors.WARNING, "PROCESSING..."),
-        "speaking": (Colors.SECONDARY, "TRANSMITTING"),
-    }
-    state_color, state_text = state_styles.get(state, (Colors.PRIMARY, "READY"))
-
-    status_icon = "●" if connected else "○"
-    status_color = Colors.SUCCESS if connected else Colors.ERROR
-    status_text = "ONLINE" if connected else "OFFLINE"
-
-    # Create header content
-    header_content = Text()
+    # Status indicators
+    conn_str = "[bold green]ONLINE[/]" if connected else "[bold red]OFFLINE[/]"
+    mem_str = "[cyan]INTEGRITY: 100%[/]"
     
-    # Glow effect for logo (gradient)
-    logo_text = animate_gradient(" GEMMIS NEURAL INTERFACE ", speed=2.0)
-    header_content.append(logo_text)
-    header_content.append("\n")
-    
-    # We can omit avatar in header since it's in stats panel now to save space
-    # header_content.append(Text.from_markup(avatar))
-    # header_content.append("\n", style=state_color)
-    
-    header_content.append(f"  {state_text}", style=f"bold {state_color}")
-    header_content.append(f"  [{status_color}]{status_icon} {status_text}[/] ", style=Colors.DIM)
-
-    model_display = MODEL_NAME.split(":")[0].upper()
-    header_content.append(f"[{Colors.ACCENT}]│ {model_display}[/]", style=Colors.DIM)
-
-    return Panel(
-        header_content,
-        border_style=state_color,
-        style=f"on {Colors.BG_DARK}",
-        box=TECH_BOX if connected else box.HEAVY, # Use Tech Box
-        padding=(0, 2),
+    # Row with data
+    grid.add_row(
+        f" SYS: {conn_str} | {mem_str}",
+        "[bold magenta]GEMMIS v2.1[/]",  # Middle
+        f"MODE: [bold white]{state.upper()}[/]" # Right
     )
+
+    # Return the panel with a heavy frame
+    return Panel(grid, style="on #000000", box=CYBER_BOX, border_style="dim")

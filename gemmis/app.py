@@ -18,8 +18,9 @@ from rich.text import Text
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.styles import Style
 
-from .ui.boxes import CIRCUIT_BOX
+from .ui.boxes import CIRCUIT_BOX, CYBER_BOX, SCAN_BOX
 
 # Optional: TextBlob for sentiment analysis (graceful degradation)
 try:
@@ -122,13 +123,15 @@ def update_layout(
     
     # Footer panel with lighter background to make prompt visible
     # The prompt_toolkit prompt will be displayed in this area
+    # NOTE: In the new input loop, prompt_toolkit renders ON TOP of this.
+    # We just provide a frame.
     footer_text = Text("", style=Colors.TEXT_PRIMARY)
     layout["footer"].update(
         Panel(
             footer_text,
             border_style=Colors.BORDER_PRIMARY,
             style=f"on {Colors.BG_LIGHT}",  # Lighter background for better visibility
-            box=CIRCUIT_BOX,
+            box=CYBER_BOX,
             padding=(0, 1),
         )
     )
@@ -322,6 +325,7 @@ async def async_main(
 
         try:
             # 3. The Critical Fix: Use 'session' (defined in async_main scope)
+            # patch_stdout handles ensuring this prints above the prompt line correctly
             response = await session.prompt_async(prompt_html)
 
             if response.strip().lower() == 'y':
@@ -342,303 +346,240 @@ async def async_main(
         console.print(f"[dim]Screen mode: {use_screen_mode}, TTY: {is_tty}, Encoding: {encoding}[/]")
     
     # Ensure stdout is in the right state before entering Live context
-    # Flush any pending output to avoid escape sequence corruption
     sys.stdout.flush()
     sys.stderr.flush()
     
-    # Set stdout to unbuffered mode to prevent escape sequence corruption
-    # This ensures ANSI codes are written immediately without buffering
-    if hasattr(sys.stdout, 'reconfigure'):
-        try:
-            sys.stdout.reconfigure(line_buffering=True)
-        except Exception:
-            pass  # Some terminals don't support reconfiguration
-    
     try:
-        # Use patch_stdout() with raw=True to pass through ANSI codes without modification
-        # This prevents prompt_toolkit from buffering/modifying Rich's escape sequences
-        # raw=True means prompt_toolkit won't try to interpret the output, just pass it through
-        with patch_stdout(raw=True):
-            # Use refresh_per_second=0 to disable automatic refresh
-            # We'll handle updates manually to avoid overwriting prompt_toolkit input
+        # Use patch_stdout() to manage stdout/stderr while allowing PromptSession to work
+        # This is key for the "blind typing" fix - it ensures input line is always visible
+        with patch_stdout():
+            # screen=True = Fullscreen (no scrollback history on screen)
+            # refresh_per_second=10 = Faster UI updates
+            # redirect_stderr=False = Let patch_stdout handle stderr if needed
             with Live(
                 layout,
                 console=console,
                 screen=use_screen_mode,
-                refresh_per_second=0,  # Disable auto-refresh - we'll update manually
-                redirect_stderr=False,
-                transient=False,  # Keep output after exit
+                refresh_per_second=10,
+                redirect_stderr=False
             ) as live:
-                live_context = live
-                live_ref = live  # Set reference for safe_tool_executor
 
-                # Draw initial frame immediately
+                live_context = live
                 live.refresh()
 
-                # Flag to control when we're waiting for input (pause Live updates)
-                waiting_for_input = False
+                # Main Application Loop
+                while True:
+                    # --- UPDATE DATA ---
+                    # Update system stats (runs once per loop iteration)
+                    cpu_stats = monitor.get_cpu_stats()
+                    mem_stats = monitor.get_memory_stats()
 
-                async def update_ui_loop():
-                    """Background task to update UI when not waiting for input"""
-                    while True:
-                        if not waiting_for_input:
-                            # Update system stats
-                            cpu_stats = monitor.get_cpu_stats()
-                            mem_stats = monitor.get_memory_stats()
+                    state.system_stats = {
+                        "cpu": cpu_stats,
+                        "memory": mem_stats,
+                        "disk": monitor.get_disk_stats(),
+                    }
 
-                            state.system_stats = {
-                                "cpu": cpu_stats,
-                                "memory": mem_stats,
-                                "disk": monitor.get_disk_stats(),
-                            }
+                    # Update history for sparklines
+                    if cpu_stats:
+                        state.cpu_history.append(cpu_stats.get("usage", 0))
+                        if len(state.cpu_history) > 20:
+                            state.cpu_history.pop(0)
 
-                            # Update history for sparklines
-                            if cpu_stats:
-                                state.cpu_history.append(cpu_stats.get("usage", 0))
-                                if len(state.cpu_history) > 20:
-                                    state.cpu_history.pop(0)
+                    if mem_stats:
+                        state.mem_history.append(mem_stats.get("percent", 0))
+                        if len(state.mem_history) > 20:
+                            state.mem_history.pop(0)
 
-                            if mem_stats:
-                                state.mem_history.append(mem_stats.get("percent", 0))
-                                if len(state.mem_history) > 20:
-                                    state.mem_history.pop(0)
+                    # Update TPS history
+                    if state.status != "GENERATING":
+                        state.tokens_per_sec_history.append(0.0)
+                    else:
+                        state.tokens_per_sec_history.append(state.tokens_per_sec)
+                    if len(state.tokens_per_sec_history) > 20:
+                        state.tokens_per_sec_history.pop(0)
 
-                            # Update TPS history (decay if not generating)
-                            if state.status != "GENERATING":
-                                state.tokens_per_sec_history.append(0.0)
-                            else:
-                                state.tokens_per_sec_history.append(state.tokens_per_sec)
+                    # --- UPDATE UI ---
+                    update_layout(
+                        layout,
+                        state,
+                        console,
+                        render_chat_streaming=render_chat_streaming,
+                        render_stats_panel=render_stats_panel
+                    )
 
-                            if len(state.tokens_per_sec_history) > 20:
-                                state.tokens_per_sec_history.pop(0)
+                    # --- INPUT FIX (Here is the magic) ---
+                    try:
+                        # Define a style that GUARANTEES visibility (Neon Green/White)
+                        # This overwrites any dark theme colors that might hide input
+                        prompt_style = Style.from_dict({
+                            'prompt': '#00ff00 bold',       # "COMMAND"
+                            'input': '#ffffff',             # Input text (White)
+                        })
 
-                            # Update UI state
-                            state.avatar_state = "idle"
-                            state.status = "READY"
-
-                            # Update and Draw Layout
-                            update_layout(
-                                layout,
-                                state,
-                                console,
-                                render_chat_streaming=render_chat_streaming,
-                                render_stats_panel=render_stats_panel
-                            )
-                            live.refresh()
-                        
-                        # Update every 0.25 seconds (4 times per second)
-                        await asyncio.sleep(0.25)
-
-                # Start background UI update task
-                update_task = asyncio.create_task(update_ui_loop())
-
-                try:
-                    while True:
-                        # Final layout update before showing prompt (ensures footer is visible)
-                        update_layout(
-                            layout,
-                            state,
-                            console,
-                            render_chat_streaming=render_chat_streaming,
-                            render_stats_panel=render_stats_panel
+                        # Prompt HTML - Clean and clear
+                        prompt_html = HTML(
+                            "<prompt>COMMAND_OVERRIDE</prompt> <style fg='#444444'>></style> "
                         )
-                        live.refresh()
+
+                        # patch_stdout ensures this line "floats" above/below graphics correctly
+                        user_input = await session.prompt_async(
+                            prompt_html,
+                            style=prompt_style
+                        )
                         
-                        # Mark that we're now waiting for input (pause Live updates)
-                        waiting_for_input = True
-
-                        # Get input using prompt_toolkit (non-blocking, works with Live)
-                        try:
-                            def clean_col(c):
-                                """Clean color string for prompt_toolkit HTML"""
-                                return c.replace("bold ", "").replace("italic ", "").strip()
-
-                            # Use bright, visible colors for prompt
-                            # Extract base colors without modifiers for prompt_toolkit
-                            p_col = clean_col(Colors.PRIMARY)
-                            acc_col = clean_col(Colors.ACCENT)
-                            # Use text_primary instead of dim for better visibility
-                            text_col = clean_col(Colors.TEXT_PRIMARY)
-
-                            # Create prompt with visible colors
-                            # prompt_toolkit HTML uses fg='color' format
-                            prompt_html = HTML(
-                                f"<style fg='{p_col}'>┃</style> "
-                                f"<b><style fg='{acc_col}'>USER</style></b>"
-                                f"<style fg='{text_col}'> @ </style>"
-                                f"<style fg='{p_col}'>GEMMIS ▶ </style>"
-                            )
-
-                            # Async input - while waiting, update_ui_loop is paused (waiting_for_input = True)
-                            # This prevents Live() from overwriting the input field
-                            user_input = await session.prompt_async(prompt_html)
-                            user_input = user_input.strip()
-                            
-                            # Resume Live updates after input
-                            waiting_for_input = False
-
-                        except (EOFError, KeyboardInterrupt):
-                            # Cancel update task before breaking
-                            update_task.cancel()
-                            try:
-                                await update_task
-                            except asyncio.CancelledError:
-                                pass
-                            break
+                        user_input = user_input.strip()
 
                         if not user_input:
                             continue
 
-                    # SENTIMENT ANALYSIS & THEME INJECTION (optional feature)
-                    if TEXTBLOB_AVAILABLE and not user_input.startswith("/"):
-                        try:
-                            blob = TextBlob(user_input)
-                            sentiment = blob.sentiment.polarity  # -1.0 to 1.0
+                        # SENTIMENT ANALYSIS & THEME INJECTION
+                        if TEXTBLOB_AVAILABLE and not user_input.startswith("/"):
+                            try:
+                                blob = TextBlob(user_input)
+                                sentiment = blob.sentiment.polarity
+                                current_theme_name = get_current_theme().name.lower()
 
-                            # Dynamic Theme Switching based on sentiment
-                            current_theme_name = get_current_theme().name.lower()
+                                if sentiment < -0.5 and current_theme_name != "cyberpunk":
+                                    set_theme("cyberpunk")
+                                    Colors = get_current_theme()
+                                elif sentiment > 0.5 and current_theme_name != "nord":
+                                    set_theme("nord")
+                                    Colors = get_current_theme()
+                            except Exception:
+                                pass
 
-                            if sentiment < -0.5 and current_theme_name != "cyberpunk":
-                                set_theme("cyberpunk")
-                                Colors = get_current_theme()
-                            elif sentiment > 0.5 and current_theme_name != "nord":
-                                set_theme("nord")
-                                Colors = get_current_theme()
-                        except Exception:
-                            pass
+                        # Handle commands
+                        if user_input.startswith("/"):
+                            parts = user_input.split(maxsplit=1)
+                            cmd = parts[0].lower()
+                            arg = parts[1] if len(parts) > 1 else None
 
-                    # Handle commands
-                    if user_input.startswith("/"):
-                        parts = user_input.split(maxsplit=1)
-                        cmd = parts[0].lower()
-                        arg = parts[1] if len(parts) > 1 else None
+                            should_continue = await handle_command(cmd, arg, state, console, client, monitor)
+                            if not should_continue:
+                                break
+                            continue
 
-                        should_continue = await handle_command(cmd, arg, state, console, client, monitor)
-                        if not should_continue:
-                            break
-                        continue
+                        # Add user message
+                        await state.add_message("user", user_input)
+                        state.avatar_state = "thinking"
+                        state.status = "THINKING"
+                        state.tokens = 0
+                        state.current_response = ""
 
-                    # Add user message
-                    await state.add_message("user", user_input)
-                    state.avatar_state = "thinking"
-                    state.status = "THINKING"
-                    state.tokens = 0
-                    state.current_response = ""
+                        # Update UI to show "Thinking"
+                        update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
+                        # No manual refresh needed with refresh_per_second=10, but doesn't hurt
 
-                    # Start streaming animation
-                    state.avatar_state = "speaking"
-                    state.status = "GENERATING"
+                        # Start streaming animation
+                        state.avatar_state = "speaking"
+                        state.status = "GENERATING"
 
-                    # Streaming Loop
-                    tools_enabled = True
-                    max_tool_iterations = 5
-                    tool_iterations = 0
+                        # Streaming Loop
+                        tools_enabled = True
+                        max_tool_iterations = 5
+                        tool_iterations = 0
 
-                    while tool_iterations < max_tool_iterations:
-                        tool_called = False
+                        while tool_iterations < max_tool_iterations:
+                            tool_called = False
 
-                        try:
-                            # Pass safe_tool_executor
-                            async for token, stats, tool_info in client.chat_stream(
-                                await state.get_chat_messages(),
-                                tools_enabled=tools_enabled,
-                                tool_executor=safe_tool_executor,
-                            ):
-                                if tool_info and tool_info.get("type") == "tool_call":
-                                    tool_called = True
-                                    tool_name = tool_info.get("tool_name", "")
-                                    tool_args = tool_info.get("arguments", {})
-                                    tool_result = tool_info.get("result", {})
+                            try:
+                                # Pass safe_tool_executor
+                                async for token, stats, tool_info in client.chat_stream(
+                                    await state.get_chat_messages(),
+                                    tools_enabled=tools_enabled,
+                                    tool_executor=safe_tool_executor,
+                                ):
+                                    if tool_info and tool_info.get("type") == "tool_call":
+                                        tool_called = True
+                                        tool_name = tool_info.get("tool_name", "")
+                                        tool_args = tool_info.get("arguments", {})
+                                        tool_result = tool_info.get("result", {})
 
-                                    args_str = ", ".join(f"{k}={v}" for k, v in tool_args.items() if v)
-                                    tool_msg = f"🔧 EXEC_TOOL: {tool_name}({args_str})" if args_str else f"🔧 EXEC_TOOL: {tool_name}()"
+                                        args_str = ", ".join(f"{k}={v}" for k, v in tool_args.items() if v)
+                                        tool_msg = f"🔧 EXEC_TOOL: {tool_name}({args_str})" if args_str else f"🔧 EXEC_TOOL: {tool_name}()"
 
-                                    state.current_response = tool_msg
+                                        state.current_response = tool_msg
 
-                                    if tool_name == "read_file":
-                                        state.effects["hexdump"] = HexDump()
+                                        if tool_name == "read_file":
+                                            state.effects["hexdump"] = HexDump()
 
-                                    update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
-                                    live.refresh()
-                                    await asyncio.sleep(0.5)
+                                        update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
+                                        # live.refresh() # handled by refresh_per_second
+                                        await asyncio.sleep(0.5)
 
-                                    state.messages.append({
-                                        "role": "assistant",
-                                        "content": None,
-                                        "tool_calls": [{"type": "function", "function": {"name": tool_name, "arguments": json.dumps(tool_args) if tool_args else "{}"}}]
-                                    })
+                                        state.messages.append({
+                                            "role": "assistant",
+                                            "content": None,
+                                            "tool_calls": [{"type": "function", "function": {"name": tool_name, "arguments": json.dumps(tool_args) if tool_args else "{}"}}]
+                                        })
 
-                                    state.messages.append({
-                                        "role": "tool",
-                                        "name": tool_name,
-                                        "content": json.dumps(tool_result, ensure_ascii=False),
-                                    })
+                                        state.messages.append({
+                                            "role": "tool",
+                                            "name": tool_name,
+                                            "content": json.dumps(tool_result, ensure_ascii=False),
+                                        })
 
-                                    if "error" in tool_result:
-                                        result_msg = f"❌ ERROR: {tool_result.get('error')}"
-                                    else:
-                                        result_msg = f"✅ COMPLETE: {tool_name}"
-                                    state.current_response = result_msg
+                                        if "error" in tool_result:
+                                            result_msg = f"❌ ERROR: {tool_result.get('error')}"
+                                        else:
+                                            result_msg = f"✅ COMPLETE: {tool_name}"
+                                        state.current_response = result_msg
 
-                                    if "hexdump" in state.effects:
-                                        del state.effects["hexdump"]
+                                        if "hexdump" in state.effects:
+                                            del state.effects["hexdump"]
 
-                                    update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
-                                    live.refresh()
-                                    await asyncio.sleep(0.3)
+                                        update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
+                                        await asyncio.sleep(0.3)
 
-                                    state.current_response = ""
+                                        state.current_response = ""
+                                        break
+
+                                    if token:
+                                        state.current_response += token
+                                        # Audio throttle
+                                        if random.random() < 0.3:
+                                            audio.play("token")
+
+                                        update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
+                                        # Live updates automatically
+
+                                    if stats:
+                                        state.tokens = stats.tokens_generated
+                                        state.tokens_per_sec = stats.tokens_per_second
+                            except Exception as e:
+                                audio.play("error")
+                                if tools_enabled and tool_iterations == 0:
+                                    tools_enabled = False
+                                    tool_iterations = 0
+                                    continue
+                                else:
                                     break
 
-                                if token:
-                                    state.current_response += token
-                                    # Audio throttle
-                                    if random.random() < 0.3:
-                                        audio.play("token")
-
-                                    update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
-                                    live.refresh()
-
-                                if stats:
-                                    state.tokens = stats.tokens_generated
-                                    state.tokens_per_sec = stats.tokens_per_second
-                        except Exception as e:
-                            audio.play("error")
-                            if tools_enabled and tool_iterations == 0:
-                                tools_enabled = False
-                                tool_iterations = 0
-                                continue
-                            else:
+                            if not tool_called:
                                 break
 
-                        if not tool_called:
-                            break
+                            audio.play("tool")
+                            tool_iterations += 1
+                            await asyncio.sleep(0.2)
 
-                        audio.play("tool")
-                        tool_iterations += 1
-                        await asyncio.sleep(0.2)
+                        if state.current_response and state.current_response.strip():
+                            if state.messages and state.messages[-1].get("role") == "tool":
+                                state.messages.append({"role": "assistant", "content": state.current_response})
+                                await state.add_message("assistant", state.current_response)
+                            elif not (state.messages and state.messages[-1].get("tool_calls")):
+                                await state.add_message("assistant", state.current_response)
 
-                    if state.current_response and state.current_response.strip():
-                        if state.messages and state.messages[-1].get("role") == "tool":
-                            state.messages.append({"role": "assistant", "content": state.current_response})
-                            await state.add_message("assistant", state.current_response)
-                        elif not (state.messages and state.messages[-1].get("tool_calls")):
-                            await state.add_message("assistant", state.current_response)
+                            audio.play("success")
 
-                        audio.play("success")
+                        state.avatar_state = "idle"
+                        state.status = "DONE"
+                        update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
+                        await asyncio.sleep(0.3)
 
-                    state.avatar_state = "idle"
-                    state.status = "DONE"
-                    update_layout(layout, state, console, render_chat_streaming, render_stats_panel)
-                    live.refresh()
-                    await asyncio.sleep(0.3)
-                
-                # Cancel update task when loop exits normally
-                update_task.cancel()
-                try:
-                    await update_task
-                except asyncio.CancelledError:
-                    pass
+                    except (EOFError, KeyboardInterrupt):
+                        break
+
 
     except KeyboardInterrupt:
         console.print(f"\n[{Colors.DIM}]MANUAL OVERRIDE: TERMINATED[/]")
