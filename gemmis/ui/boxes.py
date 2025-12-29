@@ -83,4 +83,30 @@ __all__ = [
     "NEON_BOX",
     "DATA_BUS_BOX",
     "CYBER_GRID_BOX",
+    "CYBER_BOX",
+    "SCAN_BOX",
 ]
+
+# Cyber Box - Heavy industrial frame
+CYBER_BOX = Box(
+    "█▀▀█\n"
+    "█  █\n"
+    "█──█\n"
+    "█  █\n"
+    "█──█\n"
+    "█──█\n"
+    "█  █\n"
+    "█▄▄█\n"
+)
+
+# Scan Box - Thin scanline frame
+SCAN_BOX = Box(
+    "╓──╖\n"
+    "║  ║\n"
+    "╟──╢\n"
+    "║  ║\n"
+    "╟──╢\n"
+    "╟──╢\n"
+    "║  ║\n"
+    "╙──╜\n"
+)
