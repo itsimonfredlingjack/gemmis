@@ -73,20 +73,20 @@ def get_css() -> str:
     ChatBubble {{
         width: 100%;
         height: auto;
-        padding: 1;
+        padding: 0 1;
         margin-bottom: 1;
         background: {theme.BG_LIGHT};
-        border: solid {theme.BORDER_SECONDARY};
+        border: heavy {theme.BORDER_SECONDARY};
     }}
 
     ChatBubble.user {{
-        border: solid {theme.PRIMARY};
+        border: heavy {theme.PRIMARY};
         background: {theme.BG_LIGHT};
         margin-left: 4;
     }}
 
     ChatBubble.assistant {{
-        border: solid {theme.SECONDARY};
+        border: heavy {theme.SECONDARY};
         background: {theme.BG_DARK};
         margin-right: 4;
     }}

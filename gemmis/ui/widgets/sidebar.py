@@ -9,6 +9,7 @@ from textual.reactive import reactive
 
 from ...system_monitor import get_monitor
 from ...state import AppState
+from .avatar import AvatarWidget
 
 class SystemMonitorWidget(Static):
     """Displays CPU and RAM usage with Sparklines"""
@@ -81,5 +82,6 @@ class Sidebar(Vertical):
         self.state = state
 
     def compose(self) -> ComposeResult:
+        yield AvatarWidget()
         yield SystemMonitorWidget(self.state)
         yield SessionListWidget()

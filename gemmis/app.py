@@ -22,8 +22,10 @@ from .ui.widgets.sidebar import Sidebar
 from .ui.widgets.dashboard import ProcessList
 from .ui.widgets.docker import DockerStatus
 from .ui.widgets.chat import ChatBubble, CodeBlock, SaveCodeRequest, ApplyFileModal
+from .ui.widgets.avatar import AvatarWidget
 from .ui import theme as theme_module
 from .config import MODEL_NAME, save_default_config
+from .audio import get_audio
 
 # Modal for Tool Confirmation
 class ToolConfirmationModal(ModalScreen[bool]):
@@ -61,6 +63,7 @@ class GemmisApp(App):
         self.app_state = AppState()
         self.client = OllamaClient(model=model_name)
         self.is_generating = False
+        self.audio = get_audio()
         
     def compose(self) -> ComposeResult:
         with Horizontal():
@@ -208,6 +211,10 @@ class GemmisApp(App):
         """Worker to handle LLM streaming"""
         self.is_generating = True
 
+        # Update Avatar State
+        avatar = self.query_one(AvatarWidget)
+        avatar.state = "thinking"
+
         container = self.query_one("#chat-container", Vertical)
 
         # Create a temporary Markdown widget for streaming
@@ -283,6 +290,15 @@ class GemmisApp(App):
                     stream_widget.update(full_response)
                     container.scroll_end(animate=False)
 
+                    # Update Avatar to speaking if not already
+                    if avatar.state != "speaking":
+                        avatar.state = "speaking"
+
+                    # Optional: Audio blip per token (throttled)
+                    import random
+                    if random.random() < 0.2:
+                        self.audio.play("token")
+
             # Streaming done. Replace Markdown widget with parsed ChatBubble
             stream_widget.remove()
             if full_response:
@@ -291,10 +307,12 @@ class GemmisApp(App):
 
         except Exception as e:
             container.mount(ChatBubble("error", f"Error: {e}"))
-            # self.notify(str(e)) # Debug
+            avatar.state = "error"
 
         finally:
             self.is_generating = False
+            if avatar.state != "error":
+                avatar.state = "idle"
             container.scroll_end()
 
     @on(SaveCodeRequest)
