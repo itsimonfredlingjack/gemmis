@@ -1,4 +1,5 @@
 #!/bin/bash
 # GEMMIS CLI wrapper
 cd "$(dirname "$0")"
-exec textual run gemmis/app.py "$@"
+# Ensure we are using the local python environment where dependencies are installed
+exec python3 -m gemmis.cli "$@"

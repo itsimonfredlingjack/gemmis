@@ -28,6 +28,7 @@ DEFAULT_READ_TIMEOUT = 120.0
 # Default UI settings
 DEFAULT_MAX_HISTORY = 50
 DEFAULT_REFRESH_RATE = 10  # Hz
+DEFAULT_UI_THEME = "synthwave" # New default
 
 # Default System prompt
 DEFAULT_SYSTEM_PROMPT = """Du är GEMMIS, en avancerad AI-assistent med en Cyberpunk/Sci-Fi-personlighet.
@@ -93,29 +94,27 @@ def save_default_config():
     if CONFIG_FILE.exists():
         return
 
-    default_config = f"""# GEMMIS CLI Configuration
+    default_config = (
+        f"# GEMMIS CLI Configuration\n\n"
+        f"[ollama]\n"
+        f'base_url = "{DEFAULT_OLLAMA_BASE_URL}"\n\n'
+        f"[model]\n"
+        f'name = "{DEFAULT_MODEL_NAME}"\n'
+        f"temperature = {DEFAULT_TEMPERATURE}\n"
+        f"top_p = {DEFAULT_TOP_P}\n"
+        f"max_tokens = {DEFAULT_MAX_TOKENS}\n"
+        f"context_length = {DEFAULT_CONTEXT_LENGTH}\n\n"
+        f"[timeouts]\n"
+        f"connect = {DEFAULT_CONNECT_TIMEOUT}\n"
+        f"read = {DEFAULT_READ_TIMEOUT}\n\n"
+        f"[ui]\n"
+        f"max_history = {DEFAULT_MAX_HISTORY}\n"
+        f"refresh_rate = {DEFAULT_REFRESH_RATE}\n"
+        f'theme = "{DEFAULT_UI_THEME}"\n\n'
+        f"[system]\n"
+        f'prompt = """{DEFAULT_SYSTEM_PROMPT}"""\n'
+    )
 
-[ollama]
-base_url = "{DEFAULT_OLLAMA_BASE_URL}"
-
-[model]
-name = "{DEFAULT_MODEL_NAME}"
-temperature = {DEFAULT_TEMPERATURE}
-top_p = {DEFAULT_TOP_P}
-max_tokens = {DEFAULT_MAX_TOKENS}
-context_length = {DEFAULT_CONTEXT_LENGTH}
-
-[timeouts]
-connect = {DEFAULT_CONNECT_TIMEOUT}
-read = {DEFAULT_READ_TIMEOUT}
-
-[ui]
-max_history = {DEFAULT_MAX_HISTORY}
-refresh_rate = {DEFAULT_REFRESH_RATE}
-
-[system]
-prompt = \"\"\"{DEFAULT_SYSTEM_PROMPT}\"\"\"
-"""
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         f.write(default_config)
 
@@ -141,6 +140,7 @@ READ_TIMEOUT = _config.get("timeouts", {}).get("read", DEFAULT_READ_TIMEOUT)
 # UI settings
 MAX_HISTORY = _config.get("ui", {}).get("max_history", DEFAULT_MAX_HISTORY)
 REFRESH_RATE = _config.get("ui", {}).get("refresh_rate", DEFAULT_REFRESH_RATE)
+UI_THEME = _config.get("ui", {}).get("theme", DEFAULT_UI_THEME)
 
 # System prompt
 SYSTEM_PROMPT = _config.get("system", {}).get("prompt", DEFAULT_SYSTEM_PROMPT)

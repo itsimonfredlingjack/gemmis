@@ -16,16 +16,24 @@ from .state import AppState
 from .ollama_client import OllamaClient
 from .ui.css import get_css
 from .ui.widgets.sidebar import Sidebar, ModelLoaded
+from .ui.widgets.avatar import AvatarWidget
+from .ui.widgets.matrix import MatrixRain
+from .ui.effects import GlitchOverlay
 from .ui.widgets.dashboard import Dashboard, ProcessKilled
 from .ui.widgets.docker import Docker
 from .ui.widgets.chat import Chat
 from .config import MODEL_NAME, save_default_config
+from .audio import get_audio
 
 class GemmisApp(App):
     """Main Textual App for GEMMIS"""
     
     CSS = get_css()
-    BINDINGS = [("ctrl+q", "quit", "Quit")]
+    BINDINGS = [
+        ("ctrl+q", "quit", "Quit"),
+        ("ctrl+m", "toggle_matrix", "Matrix"),
+        ("ctrl+g", "trigger_glitch", "Glitch")
+    ]
 
     def __init__(self, model_name: str = None, persona: str = "default"):
         super().__init__()
@@ -34,8 +42,11 @@ class GemmisApp(App):
         self.app_state = AppState()
         self.client = OllamaClient(model=self.model_name)
         self.is_generating = False
+        self.audio = get_audio()
         
     def compose(self) -> ComposeResult:
+        yield MatrixRain()
+        yield GlitchOverlay(id="glitch-overlay")
         with Horizontal():
             yield Sidebar(self.app_state, self.client)
             with Vertical(id="main-area"):
@@ -46,17 +57,26 @@ class GemmisApp(App):
                         yield Dashboard()
                     with TabPane("Docker", id="tab-docker"):
                         yield Docker()
-                yield Input(placeholder="Enter command...", id="message-input")
+                yield Input(placeholder="Enter command to execute...", id="message-input")
         yield Footer()
 
     async def on_mount(self) -> None:
-        self.title = "GEMMIS TERMINAL"
+        self.title = "GEMMIS TERMINAL v3.0"
         self.query_one("#message-input").focus()
+        
+        # Audio System Online
+        if self.audio.enabled:
+            self.audio.play("startup")
+            self.notify("Audio System: ONLINE")
+            
         if self.persona != "default":
             from .personas import get_persona_prompt
             self.app_state.system_prompt = get_persona_prompt(self.persona)
         await self.init_memory()
         await self.load_chat_history()
+        
+        # Start breathing pulse
+        self.run_worker(self.breathing_pulse())
 
     async def init_memory(self):
         """Initialize persistence layer"""
@@ -81,42 +101,101 @@ class GemmisApp(App):
         chat = self.query_one(Chat)
         await self.app_state.get_chat_messages()
         if not self.app_state.messages:
-            chat.add_message("assistant", "Greetings. Systems Online.")
+            chat.add_message("assistant", "Greetings. Systems Online. Neural Interface Ready.")
             return
         for msg in self.app_state.messages:
             if msg.get("role") != "system":
                 chat.add_message(msg.get("role"), msg.get("content", ""))
 
-    @on(Input.Submitted, "#message-input")
-    async def handle_input(self, event: Input.Submitted) -> None:
-        user_input = event.value.strip()
-        if not user_input or self.is_generating:
-            return
-        event.input.value = ""
-        self.query_one(Chat).add_message("user", user_input)
-        await self.app_state.add_message("user", user_input)
-        self.run_worker(self.generate_response(), exclusive=True)
+    async def breathing_pulse(self):
+        """Make the UI 'breathe' by pulsing borders"""
+        while True:
+            try:
+                # Pulse the sidebar and input borders
+                sidebar = self.query_one(Sidebar)
+                input_field = self.query_one("#message-input")
+                
+                # We can't easily animate CSS variables yet, so we toggle a class
+                sidebar.add_class("pulse")
+                input_field.add_class("pulse")
+                await asyncio.sleep(1.0)
+                sidebar.remove_class("pulse")
+                input_field.remove_class("pulse")
+                await asyncio.sleep(1.0)
+            except Exception:
+                await asyncio.sleep(5)
+
+    def action_trigger_glitch(self) -> None:
+        """Manual glitch trigger"""
+        self.query_one(GlitchOverlay).trigger(0.3, 0.15)
+
+    def update_avatar(self, state: str):
+        """Helper to update avatar state safely"""
+        try:
+            avatar = self.query_one(AvatarWidget)
+            avatar.set_state(state)
+            if state in ["error", "thinking"]:
+                self.query_one(GlitchOverlay).trigger(0.2, 0.1)
+        except Exception:
+            pass # Avatar might not be mounted yet or found
 
     async def generate_response(self):
         """Worker to handle LLM streaming"""
         self.is_generating = True
         chat = self.query_one(Chat)
+        
+        # We start with thinking, then switch to speaking on first token
+        self.update_avatar("thinking")
+        
         try:
             full_response = ""
-            # The streaming logic can be complex. For this refactor, we'll
-            # just append the full response at the end.
-            async for token, _, _ in self.client.chat_stream(
+            first_token_received = False
+            token_count = 0
+            
+            async for token, stats, tool_info in self.client.chat_stream(
                 await self.app_state.get_chat_messages()
             ):
+                if tool_info:
+                    # Handle tool output
+                    tool_name = tool_info.get("tool_name")
+                    tool_result = tool_info.get("result", {})
+                    
+                    if tool_name == "generate_image" and tool_result.get("success"):
+                        # Show ASCII art in chat
+                        ascii_art = tool_result.get("ascii", "")
+                        if ascii_art:
+                            chat.add_message("assistant", f"IMAGE_UPLINK: Rendering visual data...\n```ascii\n{ascii_art}\n```")
+                    
+                    # Add tool result to state so LLM can see it
+                    await self.app_state.add_message("tool", json.dumps(tool_result), tool_name=tool_name)
+
+                if not first_token_received and token:
+                    self.update_avatar("speaking")
+                    first_token_received = True
+                    
                 if token:
                     full_response += token
+                    token_count += 1
+                    
+                    # Play typing sound every few tokens to avoid audio spam
+                    if token_count % 3 == 0:
+                        self.audio.play("token")
 
             if full_response:
                 chat.add_message("assistant", full_response)
                 await self.app_state.add_message("assistant", full_response)
+                self.audio.play("success") # Completion chime
+            
+            self.update_avatar("idle")
 
         except Exception as e:
+            self.update_avatar("error")
+            self.audio.play("error")
             chat.add_message("assistant", f"Error: {e}")
+            # Reset after a delay
+            await asyncio.sleep(2)
+            self.update_avatar("idle")
+            
         finally:
             self.is_generating = False
 
@@ -124,22 +203,33 @@ class GemmisApp(App):
     def on_model_loaded(self, event: ModelLoaded):
         self.client.model = event.model_name
         self.model_name = event.model_name
-        self.notify(f"Model set to {event.model_name}")
+        self.notify(f"Neural Core reconfigured to {event.model_name}")
         chat = self.query_one(Chat)
         chat_display = chat.query_one("#chat-display")
         # Remove all chat bubbles
         for widget in chat_display.query("*"):
             widget.remove()
-        chat.add_message("assistant", f"Model switched to {event.model_name}. How can I help?")
+        chat.add_message("assistant", f"Core switched to {event.model_name}. Reloading personality matrix...")
+        self.update_avatar("idle")
 
     @on(ProcessKilled)
     def on_process_killed(self, event: ProcessKilled):
         try:
             os.kill(event.pid, signal.SIGKILL)
-            self.notify(f"Process {event.pid} killed.")
+            self.notify(f"Process {event.pid} terminated.")
             self.query_one(Dashboard).refresh_table()
         except Exception as e:
-            self.notify(f"Failed to kill process {event.pid}: {e}", severity="error")
+            self.notify(f"Failed to terminate process {event.pid}: {e}", severity="error")
+
+    def action_toggle_matrix(self) -> None:
+        """Toggle the Matrix rain screensaver"""
+        matrix = self.query_one(MatrixRain)
+        matrix.display = not matrix.display
+        if matrix.display:
+            self.notify("Neural Overlay: ACTIVE")
+            self.audio.play("success")
+        else:
+            self.notify("Neural Overlay: DEACTIVATED")
 
 def async_main(
     model: str | None = None,
@@ -155,6 +245,9 @@ def async_main(
     # Set theme
     from .ui.theme import set_theme
     set_theme(theme)
+    
+    # Update App CSS with theme variables
+    GemmisApp.CSS = get_css()
     
     # Show boot animation unless minimal mode
     if not minimal:

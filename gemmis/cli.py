@@ -297,6 +297,47 @@ def models() -> None:
     console.print()
 
 
+@app.command()
+def imagine(
+    prompt: str = typer.Argument(..., help="Text description of the image to generate"),
+    width: int = typer.Option(60, "--width", "-w", help="Width of ASCII preview in characters"),
+) -> None:
+    """
+    Generate an image from text.
+
+    Uses Pollinations.ai (free) to generate an image and renders an ASCII preview.
+    Saves the high-res image to ~/gemmis_images/.
+    """
+    from .tools import generate_image, image_to_ascii
+    import asyncio
+    
+    with console.status(f"[bold green]Visual Cortex Active...[/] Generating: '{prompt}'"):
+        # Since generate_image is sync for now, we run it directly
+        result = generate_image(prompt)
+    
+    if result.get("success"):
+        console.print(f"\n[bold green]SUCCESS:[/] Image saved to [underline]{result['filepath']}[/]")
+        
+        # We need to regenerate ASCII here if we want custom width, or use the one from result
+        # The result['ascii'] uses default width (60)
+        
+        if width != 60:
+             # Read file and convert with new width
+             try:
+                 with open(result['filepath'], "rb") as f:
+                     content = f.read()
+                 ascii_art = image_to_ascii(content, width=width)
+                 console.print(f"\n[bold green]{ascii_art}[/]")
+             except Exception:
+                 console.print(result.get("ascii", ""))
+        else:
+            console.print(f"\n[bold green]{result.get('ascii', '')}[/]")
+            
+        console.print("\n[dim]Use 'xdg-open <filepath>' to view the full resolution image.[/]")
+    else:
+        console.print(f"\n[bold red]ERROR:[/] {result.get('error', 'Unknown error')}")
+
+
 # For backwards compatibility, allow running without subcommand
 @app.callback(invoke_without_command=True)
 def main(

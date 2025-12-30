@@ -11,6 +11,7 @@ from textual.message import Message
 from ...system_monitor import get_monitor
 from ...state import AppState
 from ...ollama_client import OllamaClient
+from .avatar import AvatarWidget  # Import the new Avatar
 
 class ModelLoaded(Message):
     """Event sent when an Ollama model is selected."""
@@ -28,7 +29,7 @@ class SystemStats(Static):
         self.monitor = get_monitor()
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]SYSTEM STATS[/]")
+        yield Label("[bold]SYSTEM INTEGRITY[/]")
         yield Label(self.cpu_usage, id="cpu-label")
         yield Label(self.ram_usage, id="ram-label")
 
@@ -60,7 +61,7 @@ class OllamaModels(Static):
         self.client = client
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]OLLAMA MODELS[/]")
+        yield Label("[bold]NEURAL CORES[/]")
         yield ListView(id="model-list")
 
     async def on_mount(self) -> None:
@@ -71,7 +72,7 @@ class OllamaModels(Static):
             for model in models:
                 list_view.append(ListItem(Label(model['name']), name=model['name']))
         except Exception as e:
-            list_view.append(ListItem(Label(f"Error loading models.")))
+            list_view.append(ListItem(Label(f"Connection Lost")))
 
     def on_list_view_selected(self, event: ListView.Selected):
         """Handle model selection."""
@@ -85,7 +86,7 @@ class SessionList(Static):
         self.app_state = app_state
 
     def compose(self) -> ComposeResult:
-        yield Label("[bold]SESSIONS[/]")
+        yield Label("[bold]MEMORY BANKS[/]")
         yield ListView(id="session-list")
 
     async def on_mount(self) -> None:
@@ -101,9 +102,9 @@ class SessionList(Static):
                 for session in sessions:
                     list_view.append(ListItem(Label(session['name']), name=str(session['id'])))
             except Exception:
-                list_view.append(ListItem(Label("Error loading sessions.")))
+                list_view.append(ListItem(Label("Memory Corrupted")))
         else:
-            list_view.append(ListItem(Label("Current Session")))
+            list_view.append(ListItem(Label("Active Buffer")))
 
 
 class Sidebar(Vertical):
@@ -114,6 +115,7 @@ class Sidebar(Vertical):
         self.client = client
 
     def compose(self) -> ComposeResult:
+        yield AvatarWidget()  # The Ghost in the Shell is here
         yield SystemStats()
         yield OllamaModels(self.client)
         yield SessionList(self.app_state)
