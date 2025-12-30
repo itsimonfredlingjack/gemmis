@@ -12,6 +12,8 @@ from ...system_monitor import get_monitor
 from ...state import AppState
 from ...ollama_client import OllamaClient
 from .avatar import AvatarWidget  # Import the new Avatar
+from .gpu import GPUMiniStats
+from .inference import InferenceMini
 
 class ModelLoaded(Message):
     """Event sent when an Ollama model is selected."""
@@ -117,5 +119,7 @@ class Sidebar(Vertical):
     def compose(self) -> ComposeResult:
         yield AvatarWidget()  # The Ghost in the Shell is here
         yield SystemStats()
+        yield GPUMiniStats()  # GPU stats (VRAM, temp, utilization)
+        yield InferenceMini()  # Inference speed (tokens/sec)
         yield OllamaModels(self.client)
         yield SessionList(self.app_state)
