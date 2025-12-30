@@ -4,7 +4,14 @@ GEMMIS Visual Effects Engine
 import random
 from textual.widgets import Static
 from textual.reactive import reactive
+from textual.geometry import Offset
 from rich.text import Text
+
+class ScanlineOverlay(Static):
+    """A full-screen overlay for CRT scanlines."""
+    def contains_point(self, offset: Offset) -> bool:
+        """Override to ensure mouse events pass through."""
+        return False
 
 class GlitchOverlay(Static):
     """A full-screen transparent overlay that creates digital glitches."""
