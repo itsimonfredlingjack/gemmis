@@ -9,7 +9,7 @@ STATIC_CSS = """
 Screen {
     background: $bg-dark;
     color: $text-primary;
-    layers: base matrix;
+    layers: base matrix overlay;
 }
 
 #matrix-rain {
@@ -326,6 +326,58 @@ def get_css() -> str:
         background: $primary;
         color: $bg-dark;
         text-style: bold;
+    }
+
+    /* --- HUD --- */
+    .hud {
+        dock: top;
+        height: 1;
+        width: 100%;
+        background: $bg-dark;
+        color: $dim;
+        content-align: center middle;
+        text-style: bold;
+        layer: overlay;
+    }
+
+    #hud-bottom {
+        dock: bottom;
+    }
+
+    /* --- LIVING BORDERS --- */
+    .phase-1 { border: heavy $primary; }
+    .phase-2 { border: heavy $secondary; }
+    .phase-3 { border: heavy $accent; }
+
+    /* --- DATA BLOCKS --- */
+    ProcessCard {
+        height: auto;
+        min-height: 4;
+        width: 100%;
+        margin: 0 0 1 0;
+        padding: 0 1;
+        border: solid $dim;
+        background: $bg-dark;
+    }
+
+    ProcessCard:hover {
+        border: solid $primary;
+    }
+
+    ProcessCard.surge {
+        border: solid $warning;
+    }
+
+    .process-header {
+        width: 100%;
+        color: $text-primary;
+        text-style: bold;
+        padding-bottom: 0;
+    }
+
+    .process-row {
+        width: 100%;
+        height: 1;
     }
     """
 

@@ -8,7 +8,7 @@ import signal
 from pathlib import Path
 
 from textual.app import App, ComposeResult
-from textual.widgets import Input, TabbedContent, TabPane, Footer
+from textual.widgets import Input, TabbedContent, TabPane, Footer, Static
 from textual.containers import Vertical, Horizontal
 from textual import on
 
@@ -19,6 +19,7 @@ from .ui.widgets.sidebar import Sidebar, ModelLoaded
 from .ui.widgets.avatar import AvatarWidget
 from .ui.widgets.matrix import MatrixRain
 from .ui.effects import GlitchOverlay
+from .ui.widgets.particles import ParticleSystem
 from .ui.widgets.dashboard import Dashboard, ProcessKilled
 from .ui.widgets.docker import Docker
 from .ui.widgets.chat import Chat
@@ -45,19 +46,22 @@ class GemmisApp(App):
         self.audio = get_audio()
         
     def compose(self) -> ComposeResult:
+        yield Static("╔═ GEMMIS_OS v3.0 ════════════════════════╗", id="hud-top", classes="hud")
         yield MatrixRain()
         yield GlitchOverlay(id="glitch-overlay")
+        yield ParticleSystem(id="particles")
         with Horizontal():
             yield Sidebar(self.app_state, self.client)
             with Vertical(id="main-area"):
                 with TabbedContent(id="main-tabs"):
-                    with TabPane("Chat", id="tab-chat"):
+                    with TabPane(" Chat ", id="tab-chat"):
                         yield Chat()
-                    with TabPane("Dashboard", id="tab-dashboard"):
+                    with TabPane(" Dashboard ", id="tab-dashboard"):
                         yield Dashboard()
-                    with TabPane("Docker", id="tab-docker"):
+                    with TabPane(" Docker ", id="tab-docker"):
                         yield Docker()
                 yield Input(placeholder="Enter command to execute...", id="message-input")
+        yield Static("╚══ [STATUS: ONLINE] ══ [NET: SECURE] ══ [CORE: STABLE] ══╝", id="hud-bottom", classes="hud")
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -108,20 +112,51 @@ class GemmisApp(App):
                 chat.add_message(msg.get("role"), msg.get("content", ""))
 
     async def breathing_pulse(self):
-        """Make the UI 'breathe' by pulsing borders"""
+        """Make the UI 'breathe' by pulsing borders.
+        Also handles the 'thinking' animation for the Chat window."""
+        phase = 0
         while True:
             try:
-                # Pulse the sidebar and input borders
-                sidebar = self.query_one(Sidebar)
-                input_field = self.query_one("#message-input")
-                
-                # We can't easily animate CSS variables yet, so we toggle a class
-                sidebar.add_class("pulse")
-                input_field.add_class("pulse")
-                await asyncio.sleep(1.0)
-                sidebar.remove_class("pulse")
-                input_field.remove_class("pulse")
-                await asyncio.sleep(1.0)
+                # 1. Handle Thinking Animation (Fast Cycle)
+                if self.is_generating:
+                    try:
+                        chat_display = self.query_one(Chat).query_one("#chat-display")
+
+                        # Cycle phases
+                        classes = ["phase-1", "phase-2", "phase-3"]
+                        current_class = classes[phase % 3]
+                        prev_class = classes[(phase - 1) % 3]
+
+                        chat_display.remove_class(prev_class)
+                        chat_display.add_class(current_class)
+
+                        phase += 1
+                    except Exception:
+                        pass
+                    await asyncio.sleep(0.2)
+                    continue
+
+                # 2. Handle Idle Breathing (Slow Pulse)
+                else:
+                    # Clean up phase classes if any
+                    try:
+                        chat_display = self.query_one(Chat).query_one("#chat-display")
+                        chat_display.remove_class("phase-1")
+                        chat_display.remove_class("phase-2")
+                        chat_display.remove_class("phase-3")
+                    except:
+                        pass
+
+                    # Pulse the sidebar and input borders
+                    sidebar = self.query_one(Sidebar)
+                    input_field = self.query_one("#message-input")
+
+                    sidebar.add_class("pulse")
+                    input_field.add_class("pulse")
+                    await asyncio.sleep(1.0)
+                    sidebar.remove_class("pulse")
+                    input_field.remove_class("pulse")
+                    await asyncio.sleep(1.0)
             except Exception:
                 await asyncio.sleep(5)
 
@@ -185,6 +220,14 @@ class GemmisApp(App):
                 chat.add_message("assistant", full_response)
                 await self.app_state.add_message("assistant", full_response)
                 self.audio.play("success") # Completion chime
+
+                # Visual Feedback: Particles on Success
+                try:
+                    particles = self.query_one(ParticleSystem)
+                    # Explode near the input area or center
+                    particles.explode(50, 20, count=15, color="green")
+                except:
+                    pass
             
             self.update_avatar("idle")
 
@@ -217,7 +260,22 @@ class GemmisApp(App):
         try:
             os.kill(event.pid, signal.SIGKILL)
             self.notify(f"Process {event.pid} terminated.")
-            self.query_one(Dashboard).refresh_table()
+
+            # Refresh Dashboard immediately
+            try:
+                self.query_one(Dashboard).refresh_stats()
+            except Exception:
+                pass
+
+            # Visual Feedback: Particles
+            try:
+                particles = self.query_one(ParticleSystem)
+                # Position is hard to guess, let's center it or put it in the dashboard area
+                # Since we don't know exact coordinates of the clicked card easily here without event data
+                # We'll just explode in the center of the screen
+                particles.explode(40, 10, count=20, color="red")
+            except:
+                pass
         except Exception as e:
             self.notify(f"Failed to terminate process {event.pid}: {e}", severity="error")
 
