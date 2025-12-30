@@ -1,7 +1,7 @@
 """
 System Monitor - Monitor computer health and resources
 """
-
+import asyncio
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -19,34 +19,35 @@ class SystemMonitor:
         except ImportError:
             self.psutil_available = False
 
-    def get_cpu_stats(self) -> dict:
+    async def get_cpu_stats(self) -> dict:
         """Get CPU usage statistics"""
         if not self.psutil_available:
             return {}
 
-        try:
+        def _get_stats():
             cpu_percent = psutil.cpu_percent(interval=0.1)
             cpu_count = psutil.cpu_count()
             cpu_freq = psutil.cpu_freq()
-
             return {
                 "usage": cpu_percent,
                 "cores": cpu_count,
                 "freq_current": cpu_freq.current if cpu_freq else None,
                 "freq_max": cpu_freq.max if cpu_freq else None,
             }
+
+        try:
+            return await asyncio.to_thread(_get_stats)
         except Exception:
             return {}
 
-    def get_memory_stats(self) -> dict:
+    async def get_memory_stats(self) -> dict:
         """Get memory (RAM) statistics"""
         if not self.psutil_available:
             return {}
 
-        try:
+        def _get_stats():
             mem = psutil.virtual_memory()
             swap = psutil.swap_memory()
-
             return {
                 "total": mem.total,
                 "used": mem.used,
@@ -56,18 +57,20 @@ class SystemMonitor:
                 "swap_used": swap.used,
                 "swap_percent": swap.percent,
             }
+
+        try:
+            return await asyncio.to_thread(_get_stats)
         except Exception:
             return {}
 
-    def get_disk_stats(self) -> list[dict]:
+    async def get_disk_stats(self) -> list[dict]:
         """Get disk usage statistics for all partitions"""
         if not self.psutil_available:
             return []
 
-        try:
+        def _get_stats():
             disks = []
             partitions = psutil.disk_partitions()
-
             for partition in partitions:
                 try:
                     usage = psutil.disk_usage(partition.mountpoint)
@@ -84,17 +87,19 @@ class SystemMonitor:
                     )
                 except PermissionError:
                     continue
-
             return disks
+
+        try:
+            return await asyncio.to_thread(_get_stats)
         except Exception:
             return []
 
-    def get_network_stats(self) -> dict:
+    async def get_network_stats(self) -> dict:
         """Get network I/O statistics"""
         if not self.psutil_available:
             return {}
 
-        try:
+        def _get_stats():
             net_io = psutil.net_io_counters()
             return {
                 "bytes_sent": net_io.bytes_sent,
@@ -102,15 +107,18 @@ class SystemMonitor:
                 "packets_sent": net_io.packets_sent,
                 "packets_recv": net_io.packets_recv,
             }
+
+        try:
+            return await asyncio.to_thread(_get_stats)
         except Exception:
             return {}
 
-    def get_top_processes(self, limit: int = 5, sort_by: str = "cpu") -> list[dict]:
+    async def get_top_processes(self, limit: int = 5, sort_by: str = "cpu") -> list[dict]:
         """Get top processes by CPU or memory usage"""
         if not self.psutil_available:
             return []
 
-        try:
+        def _get_stats():
             processes = []
             for proc in psutil.process_iter(
                 ["pid", "name", "cpu_percent", "memory_percent", "memory_info"]
@@ -131,32 +139,36 @@ class SystemMonitor:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
 
-            # Sort and limit
             sort_key = "cpu_percent" if sort_by == "cpu" else "memory_percent"
             processes.sort(key=lambda x: x[sort_key], reverse=True)
             return processes[:limit]
+
+        try:
+            return await asyncio.to_thread(_get_stats)
         except Exception:
             return []
 
-    def get_system_info(self) -> dict:
+    async def get_system_info(self) -> dict:
         """Get general system information"""
         if not self.psutil_available:
             return {}
 
-        try:
+        def _get_info():
             boot_time = datetime.fromtimestamp(psutil.boot_time())
             uptime = datetime.now() - boot_time
-
             return {
                 "boot_time": boot_time.isoformat(),
                 "uptime_days": uptime.days,
                 "uptime_hours": uptime.seconds // 3600,
                 "uptime_minutes": (uptime.seconds % 3600) // 60,
             }
+
+        try:
+            return await asyncio.to_thread(_get_info)
         except Exception:
             return {}
 
-    def get_system_health(self) -> dict:
+    async def get_system_health(self) -> dict:
         """Get overall system health assessment"""
         health = {
             "status": "healthy",
@@ -166,7 +178,7 @@ class SystemMonitor:
         }
 
         # Check CPU
-        cpu = self.get_cpu_stats()
+        cpu = await self.get_cpu_stats()
         if cpu.get("usage", 0) > 90:
             health["warnings"].append("CPU usage is very high (>90%)")
             health["status"] = "warning"
@@ -174,7 +186,7 @@ class SystemMonitor:
             health["warnings"].append("CPU usage is high (>80%)")
 
         # Check memory
-        mem = self.get_memory_stats()
+        mem = await self.get_memory_stats()
         if mem.get("percent", 0) > 90:
             health["issues"].append("Memory usage is critical (>90%)")
             health["status"] = "critical"
@@ -187,7 +199,7 @@ class SystemMonitor:
             health["warnings"].append("Swap usage is high - consider adding more RAM")
 
         # Check disk space
-        disks = self.get_disk_stats()
+        disks = await self.get_disk_stats()
         for disk in disks:
             if disk.get("percent", 0) > 90:
                 health["issues"].append(f"Disk {disk['mountpoint']} is almost full (>90%)")
@@ -211,71 +223,64 @@ class SystemMonitor:
 
         return health
 
-    def check_updates(self) -> dict:
+    async def check_updates(self) -> dict:
         """Check for system updates (dnf/apt/pacman)"""
         managers = [
-            ("dnf", ["dnf", "check-update", "--quiet"], 100),  # 100 is return code for updates
+            ("dnf", ["dnf", "check-update", "--quiet"], 100),
             ("apt", ["apt", "list", "--upgradable"], 0),
             ("pacman", ["checkupdates"], 0),
         ]
 
-        found_manager = None
-        for mgr, cmd, success_code in managers:
+        def _check():
+            found_manager = None
+            for mgr, cmd, success_code in managers:
+                try:
+                    if subprocess.run(["which", mgr], capture_output=True).returncode == 0:
+                        found_manager = (mgr, cmd, success_code)
+                        break
+                except Exception:
+                    continue
+
+            if not found_manager:
+                return {"available": False, "count": 0, "output": "No supported package manager found"}
+
+            mgr_name, check_cmd, update_code = found_manager
+
             try:
-                if subprocess.run(["which", mgr], capture_output=True).returncode == 0:
-                    found_manager = (mgr, cmd, success_code)
-                    break
-            except Exception:
-                continue
+                result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=15)
+                output = result.stdout or ""
+                count = 0
 
-        if not found_manager:
-            return {"available": False, "count": 0, "output": "No supported package manager found"}
-
-        mgr_name, check_cmd, update_code = found_manager
-
-        try:
-            # APT needs special handling because it returns 0 even if no updates
-            # and prints "Listing..." which we need to filter
-            result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=15)
-
-            output = result.stdout or ""
-            count = 0
-
-            if mgr_name == "dnf":
-                if result.returncode == 100:  # DNF returns 100 if updates available
-                    # Count lines that look like packages
-                    lines = [
-                        l
-                        for l in output.split("\n")
-                        if l.strip() and not l.startswith("Last") and not l.startswith("Upgraded")
-                    ]
+                if mgr_name == "dnf":
+                    if result.returncode == 100:
+                        lines = [l for l in output.split("\n") if l.strip() and not l.startswith("Last") and not l.startswith("Upgraded")]
+                        count = len(lines)
+                elif mgr_name == "apt":
+                    lines = [l for l in output.split("\n") if l.strip() and "/" in l and "Listing..." not in l]
                     count = len(lines)
-            elif mgr_name == "apt":
-                # First line is usually "Listing...", skip it
-                lines = [
-                    l
-                    for l in output.split("\n")
-                    if l.strip() and "/" in l and "Listing..." not in l
-                ]
-                count = len(lines)
-            elif mgr_name == "pacman":
-                count = len([l for l in output.split("\n") if l.strip()])
+                elif mgr_name == "pacman":
+                    count = len([l for l in output.split("\n") if l.strip()])
 
-            return {
-                "available": count > 0,
-                "count": count,
-                "output": output[:500] if output else "",
-                "manager": mgr_name,
-            }
-        except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+                return {
+                    "available": count > 0,
+                    "count": count,
+                    "output": output[:500] if output else "",
+                    "manager": mgr_name,
+                }
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+                return {"available": False, "count": 0, "output": str(e)}
+        try:
+            return await asyncio.to_thread(_check)
+        except Exception as e:
             return {"available": False, "count": 0, "output": str(e)}
 
-    def get_large_files(self, path: str = "/home", limit: int = 10) -> list[dict]:
+
+    async def get_large_files(self, path: str = "/home", limit: int = 10) -> list[dict]:
         """Find large files in a directory"""
         if not self.psutil_available:
             return []
 
-        try:
+        def _find_files():
             large_files = []
             path_obj = Path(path)
 
@@ -299,9 +304,11 @@ class SystemMonitor:
 
             large_files.sort(key=lambda x: x["size"], reverse=True)
             return large_files[:limit]
+
+        try:
+            return await asyncio.to_thread(_find_files)
         except Exception:
             return []
-
 
 # Global instance
 _monitor = None
