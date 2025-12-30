@@ -121,17 +121,19 @@ class ProcessCard(Static):
         self.mem = proc['memory_mb']
 
         self.status = "RUNNING"
+        theme_color = "cyan"
         if self.cpu > 50:
             self.status = "SURGE"
             self.add_class("surge")
+            theme_color = "bold #ff0044"
         else:
             self.remove_class("surge")
 
         # Re-render content
-        self.update(self._render_content())
+        self.update(self._render_content(theme_color))
 
-    def _render_content(self) -> str:
-        cpu_bar = render_block_bar(self.cpu, width=15, theme_color="cyan")
+    def _render_content(self, theme_color: str = "cyan") -> str:
+        cpu_bar = render_block_bar(self.cpu, width=15, theme_color=theme_color)
         return (
             f"[bold]{self.proc_name}[/] (PID {self.pid})\n"
             f"CPU: {cpu_bar} {self.cpu:.1f}%\n"

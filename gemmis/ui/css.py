@@ -10,6 +10,8 @@ Screen {
     background: $bg-dark;
     color: $text-primary;
     layers: base matrix overlay;
+    scrollbar-gutter: stable;
+    align-horizontal: center;
 }
 
 #matrix-rain {
@@ -338,6 +340,17 @@ def get_css() -> str:
         content-align: center middle;
         text-style: bold;
         layer: overlay;
+        padding-right: 2;
+        box-sizing: border-box;
+    }
+
+    #scanline-overlay {
+        display: block;
+        width: 100%;
+        height: 100%;
+        layer: overlay;
+        background: transparent;
+        opacity: 0.1;
     }
 
     #hud-bottom {
