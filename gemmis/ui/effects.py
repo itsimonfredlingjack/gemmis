@@ -289,9 +289,9 @@ class CRTScanlines(Static):
     }
     """
 
-    def __init__(self, opacity: float = 0.1, flicker: bool = True):
-        super().__init__()
-        self.opacity = opacity
+    def __init__(self, opacity: float = 0.1, flicker: bool = True, **kwargs):
+        super().__init__(**kwargs)
+        self._opacity = opacity
         self.flicker = flicker
         self.frame = 0
 

@@ -402,7 +402,7 @@ def get_css() -> str:
         tint: $primary 10%;
     }
 
-    Button.-active, Button:active {
+    Button.-active {
         background: $primary;
         color: $bg-dark;
     }
