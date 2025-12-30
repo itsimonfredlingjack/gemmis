@@ -6,7 +6,9 @@
 
 > Neural Interface Terminal for local LLM chat via Ollama
 
-A professional CLI with stunning visual themes, real-time system monitoring, and AI personas.
+GEMMIS is a professional, visually stunning, and highly customizable command-line interface (CLI) for interacting with local Large Language Models (LLMs) through Ollama. It's designed for developers, researchers, and AI enthusiasts who want a powerful and aesthetically pleasing chat experience in their terminal.
+
+With features like multiple visual themes, distinct AI personas, real-time system monitoring, and tool-calling capabilities, GEMMIS elevates the standard CLI chat into a dynamic and interactive neural interface.
 
 ## Features
 
@@ -26,58 +28,81 @@ A professional CLI with stunning visual themes, real-time system monitoring, and
 
 ## Installation
 
-```bash
-# Install with pip
-pip install -e .
+To install GEMMIS, clone the repository and install it using pip:
 
-# Or with dev dependencies for testing
+```bash
+git clone https://github.com/gemmis/gemmis-cli.git
+cd gemmis-cli
+pip install -e .
+```
+
+For development, you can install with dev dependencies:
+
+```bash
 pip install -e ".[dev]"
 ```
 
-## Quick Start
+## Usage Examples
+
+Here are a few examples of how to use GEMMIS:
+
+**1. Start a chat with the default settings:**
 
 ```bash
-# Start with defaults (Nord theme)
 gemmis
+```
 
-# Use Synthwave theme
-gemmis -t synthwave
+**2. Start a chat with the "synthwave" theme and the "hacker" persona:**
 
-# Use Hacker persona with specific model
-gemmis -p hacker -m qwen2.5:7b
+```bash
+gemmis -t synthwave -p hacker
+```
 
-# Skip boot animation
-gemmis --minimal
+**3. Use a specific model and skip the boot animation:**
 
-# Run setup wizard
+```bash
+gemmis -m qwen2.5:7b --minimal
+```
+
+**4. Run the setup wizard to configure GEMMIS:**
+
+```bash
 gemmis setup
+```
 
-# List available models
+**5. List the available Ollama models:**
+
+```bash
 gemmis models
 ```
 
 ## CLI Options
 
 ```
-gemmis [OPTIONS] COMMAND
+GEMMIS - Neural Interface Terminal for local LLM chat via Ollama
 
-Options:
-  --help                Show help message
+Usage: gemmis [OPTIONS] COMMAND [ARGS]...
 
-Commands:
-  chat      Start interactive chat (default)
-  setup     Run configuration wizard
-  config    Show/edit configuration
-  models    List available Ollama models
-
-Chat Options:
-  -m, --model TEXT     Ollama model to use
-  -t, --theme TEXT     Visual theme (nord, cyberpunk, synthwave, dracula, obsidian)
-  -p, --persona TEXT   AI persona (default, architect, hacker, assistant)
-  --minimal            Skip boot animation
-  -V, --version        Show version
-  --themes             List available themes
-  --personas           List available personas
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --model               -m      TEXT  Ollama model                             │
+│ --theme               -t      TEXT  Visual theme [default: synthwave]        │
+│ --persona             -p      TEXT  AI persona [default: default]            │
+│ --minimal                           Skip boot animation                      │
+│ --debug               -d            Enable debug                             │
+│ --no-screen                         Disable alternate screen buffer          │
+│ --install-completion                Install completion for the current       │
+│                                     shell.                                   │
+│ --show-completion                   Show completion for the current shell,   │
+│                                     to copy it or customize the              │
+│                                     installation.                            │
+│ --help                              Show this message and exit.              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────╮
+│ chat     Start interactive chat session.                                     │
+│ setup    Run interactive setup wizard.                                       │
+│ config   Show or edit configuration.                                         │
+│ models   List available Ollama models.                                       │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ## In-Chat Commands
