@@ -319,17 +319,17 @@ class CRTScanlines(Static):
         lines = []
         for y in range(height):
             if y % 2 == 0:
-                # Even lines: transparent (no scanline)
-                lines.append(Text(" " * width))
+                # Even lines: subtle dark line
+                line = Text("▔" * width, style="#222222")
+                lines.append(line)
             else:
-                # Odd lines: scanline effect
-                # Add flicker variation
-                if self.flicker and random.random() < 0.02:
-                    intensity = random.choice(["#333333", "#222222", "#444444"])
+                # Odd lines: brighter scanline
+                if self.flicker and random.random() < 0.05:
+                    # Occasional flicker - brighter
+                    style = "#00ff00 dim"  # Green CRT flicker
                 else:
-                    intensity = "#1a1a1a"
-
-                line = Text("─" * width, style=f"dim {intensity}")
+                    style = "#444444"
+                line = Text("▁" * width, style=style)
                 lines.append(line)
 
         return Text("\n").join(lines)
