@@ -1,5 +1,6 @@
 """
 GEMMIS UI CSS
+# Verified OMEGA Update
 """
 
 PRIMARY_COLOR = "#f97ff5" # Synthwave Pink as default base for CSS variables if not overridden

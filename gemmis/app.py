@@ -1,5 +1,6 @@
 """
 GEMMIS CLI - Textual Application
+# Verified OMEGA Update
 """
 import asyncio
 import json
