@@ -126,7 +126,10 @@ class GemmisApp(App):
         self.model_name = event.model_name
         self.notify(f"Model set to {event.model_name}")
         chat = self.query_one(Chat)
-        chat.query("*").delete()
+        chat_display = chat.query_one("#chat-display")
+        # Remove all chat bubbles
+        for widget in chat_display.query("*"):
+            widget.remove()
         chat.add_message("assistant", f"Model switched to {event.model_name}. How can I help?")
 
     @on(ProcessKilled)
@@ -137,6 +140,33 @@ class GemmisApp(App):
             self.query_one(Dashboard).refresh_table()
         except Exception as e:
             self.notify(f"Failed to kill process {event.pid}: {e}", severity="error")
+
+def async_main(
+    model: str | None = None,
+    theme: str = "synthwave",
+    persona: str = "default",
+    minimal: bool = False,
+    debug: bool = False,
+    no_screen: bool = False,
+) -> None:
+    """Entry point for GEMMIS CLI"""
+    save_default_config()
+    
+    # Set theme
+    from .ui.theme import set_theme
+    set_theme(theme)
+    
+    # Show boot animation unless minimal mode
+    if not minimal:
+        from rich.console import Console
+        from .ui.boot import run_boot_sequence
+        console = Console()
+        run_boot_sequence(console, theme)
+    
+    # Create and run app
+    app = GemmisApp(model_name=model, persona=persona)
+    app.run()
+
 
 def main():
     save_default_config()

@@ -47,7 +47,7 @@ class VectorStore:
     async def initialize(self) -> None:
         """Initialize or get the collection."""
         # ChromaDB operations are synchronous, run in executor
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         self.collection = await loop.run_in_executor(
             None,
             lambda: self.client.get_or_create_collection(
@@ -74,7 +74,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         if embedding:
             await loop.run_in_executor(
@@ -117,7 +117,7 @@ class VectorStore:
         if not message_ids:
             return
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         metas = metadatas or [{}] * len(message_ids)
 
         if embeddings:
@@ -161,7 +161,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         results = await loop.run_in_executor(
             None,
             lambda: self.collection.query(
@@ -197,7 +197,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
             lambda: self.collection.get(ids=[message_id])
@@ -222,7 +222,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
             lambda: self.collection.delete(ids=[message_id])
@@ -237,7 +237,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None,
             lambda: self.collection.delete(where=where)
@@ -255,7 +255,7 @@ class VectorStore:
         if not self.collection:
             await self.initialize()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         if where:
             result = await loop.run_in_executor(
