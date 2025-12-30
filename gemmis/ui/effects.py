@@ -16,6 +16,7 @@ import random
 import time
 from textual.widgets import Static
 from textual.reactive import reactive
+from textual.geometry import Offset
 from rich.text import Text
 
 from .theme import get_current_theme

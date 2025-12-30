@@ -1,5 +1,6 @@
 """
 Dashboard Widget for Gemmis TUI - GEMINI 3.0 Edition
+# Verified OMEGA Update
 """
 import os
 import signal
@@ -39,6 +40,32 @@ def render_block_bar(percent: float, width: int = 20, theme_color: str = "green"
     # Truncate if somehow exceeded (shouldn't happen with math above but safety first)
     bar = bar[:width]
     
+    return f"[{theme_color}]{bar}[/]"
+
+def render_block_bar(percent: float, width: int = 20, theme_color: str = "green") -> str:
+    """Renders a '█▓▒░' style progress bar."""
+    if width < 1: width = 1
+    # Cap percentage at 100
+    percent = min(max(percent, 0), 100)
+
+    filled_len = int(width * (percent / 100))
+    # Full blocks
+    bar = "█" * filled_len
+    # Add a 'half' block for precision if needed
+    remainder = (width * (percent / 100)) - filled_len
+    if len(bar) < width:
+        if remainder > 0.5:
+            bar += "▓"
+        elif remainder > 0.25:
+            bar += "▒"
+
+    # Fill with empty space or weak blocks
+    empty_len = width - len(bar)
+    bar += "░" * empty_len
+
+    # Truncate if somehow exceeded (shouldn't happen with math above but safety first)
+    bar = bar[:width]
+
     return f"[{theme_color}]{bar}[/]"
 
 class ProcessKilled(Message):

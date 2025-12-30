@@ -1,5 +1,6 @@
 """
 GEMMIS CLI - Textual Application
+# Verified OMEGA Update
 """
 import asyncio
 import json
@@ -83,6 +84,24 @@ class GemmisApp(App):
         
         # Start breathing pulse
         self.run_worker(self.breathing_pulse())
+        # Start border animation
+        self.set_interval(0.5, self.animate_borders)
+
+    def animate_borders(self):
+        """Rotates border colors to create an energy loop."""
+        try:
+            sidebar = self.query_one("Sidebar")
+            if sidebar.has_class("phase-1"):
+                sidebar.remove_class("phase-1")
+                sidebar.add_class("phase-2")
+            elif sidebar.has_class("phase-2"):
+                sidebar.remove_class("phase-2")
+                sidebar.add_class("phase-3")
+            else:
+                sidebar.remove_class("phase-3")
+                sidebar.add_class("phase-1")
+        except:
+            pass
 
     async def init_memory(self):
         """Initialize persistence layer"""
@@ -260,6 +279,16 @@ class GemmisApp(App):
     @on(ProcessKilled)
     def on_process_killed(self, event: ProcessKilled):
         try:
+            # 1. Visual & Audio Feedback
+            try:
+                particles = self.query_one(ParticleSystem)
+                particles.explode(x=40, y=10, count=15, color="red")
+                if self.audio.enabled:
+                    self.audio.play("break_glass")
+            except:
+                pass
+
+            # 2. Execute Kill
             os.kill(event.pid, signal.SIGKILL)
             self.notify(f"Process {event.pid} terminated.")
             
@@ -279,7 +308,7 @@ class GemmisApp(App):
             except:
                 pass
         except Exception as e:
-            self.notify(f"Failed to terminate process {event.pid}: {e}", severity="error")
+            self.notify(f"Execution failed: {e}", severity="error")
 
     def action_toggle_matrix(self) -> None:
         """Toggle the Matrix rain screensaver"""
