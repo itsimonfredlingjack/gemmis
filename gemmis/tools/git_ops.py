@@ -15,7 +15,11 @@ def get_git_status() -> dict[str, Any]:
 
         status = subprocess.run(["git", "status"], capture_output=True, text=True).stdout
         diff_stat = subprocess.run(["git", "diff", "--stat"], capture_output=True, text=True).stdout
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
         return {
             "status": status,
             "diff_stat": diff_stat
@@ -32,10 +36,17 @@ def git_commit(message: str) -> dict[str, Any]:
 
         # Stage all changes (simplified flow for AI)
         subprocess.run(["git", "add", "."], check=True)
+<<<<<<< HEAD
 
         # Commit
         result = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True)
 
+=======
+
+        # Commit
+        result = subprocess.run(["git", "commit", "-m", message], capture_output=True, text=True)
+
+>>>>>>> origin/main
         if result.returncode == 0:
             return {"success": True, "output": result.stdout}
         else:

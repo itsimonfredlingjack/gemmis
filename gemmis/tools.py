@@ -180,14 +180,22 @@ def run_python(code: str) -> dict[str, Any]:
     import json
     import datetime
     import random
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
     # Capture stdout/stderr
     buffer = io.StringIO()
     old_stdout = sys.stdout
     old_stderr = sys.stderr
     sys.stdout = buffer
     sys.stderr = buffer
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
     # Prepare environment
     env = {
         "math": math,
@@ -232,13 +240,21 @@ def run_python(code: str) -> dict[str, Any]:
         # Execute code
         exec(code, env)
         output = buffer.getvalue()
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
         # If plotext was used, check if there's a plot to show
         if "plt" in env:
             # We can't easily know if plot() was called without outputting
             # but usually users will plt.show() which writes to stdout (captured in buffer)
             pass
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
         return {
             "output": output if output else "(No output)",
             "success": True
@@ -673,7 +689,11 @@ def is_sensitive(tool_name: str, args: dict[str, Any]) -> bool:
 
     if tool_name == "run_python":
         return True
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> origin/main
     if tool_name == "git_commit":
         return True
 

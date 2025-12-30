@@ -164,15 +164,13 @@ def chat(
     from .app import async_main
 
     try:
-        asyncio.run(
-            async_main(
-                model=model,
-                theme=theme,
-                persona=persona,
-                minimal=minimal,
-                debug=debug,
-                no_screen=no_screen,
-            )
+        async_main(
+            model=model,
+            theme=theme,
+            persona=persona,
+            minimal=minimal,
+            debug=debug,
+            no_screen=no_screen,
         )
     except KeyboardInterrupt:
         console.print("\n[dim]Session terminated.[/]")
