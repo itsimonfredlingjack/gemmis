@@ -5,13 +5,41 @@ import os
 import signal
 from collections import deque
 from textual.app import ComposeResult
-from textual.widgets import Static, DataTable, Button, Label, Sparkline, ProgressBar
-from textual.containers import Vertical, Horizontal, Grid
+from textual.widgets import Static, Button, Label, Sparkline, ProgressBar
+from textual.containers import Vertical, Horizontal, Grid, VerticalScroll
 from textual.screen import ModalScreen
 from textual.message import Message
 from textual.reactive import reactive
+from textual import on
 
 from ...system_monitor import get_monitor
+from .gpu import GPUGauge
+
+def render_block_bar(percent: float, width: int = 20, theme_color: str = "green") -> str:
+    """Renders a '█▓▒░' style progress bar."""
+    if width < 1: width = 1
+    # Cap percentage at 100
+    percent = min(max(percent, 0), 100)
+    
+    filled_len = int(width * (percent / 100))
+    # Full blocks
+    bar = "█" * filled_len
+    # Add a 'half' block for precision if needed
+    remainder = (width * (percent / 100)) - filled_len
+    if len(bar) < width:
+        if remainder > 0.5:
+            bar += "▓"
+        elif remainder > 0.25:
+            bar += "▒"
+    
+    # Fill with empty space or weak blocks
+    empty_len = width - len(bar)
+    bar += "░" * empty_len
+    
+    # Truncate if somehow exceeded (shouldn't happen with math above but safety first)
+    bar = bar[:width]
+    
+    return f"[{theme_color}]{bar}[/]"
 
 class ProcessKilled(Message):
     """Event sent when a process is killed."""
@@ -73,6 +101,47 @@ class SystemGauge(Static):
         spark = self.query_one("#gauge-spark", Sparkline)
         spark.data = list(self.history)
 
+class ProcessSelect(Message):
+    """Request to select/kill a process."""
+    def __init__(self, pid: int, name: str) -> None:
+        super().__init__()
+        self.pid = pid
+        self.name = name
+
+class ProcessCard(Static):
+    """A card representing a single process."""
+    
+    def __init__(self, proc: dict):
+        super().__init__(classes="process-card")
+        self.pid = proc['pid']
+        self.proc_name = proc['name']
+        self.update_info(proc)
+        
+    def update_info(self, proc: dict):
+        self.cpu = proc['cpu_percent']
+        self.mem = proc['memory_mb']
+        
+        self.status = "RUNNING"
+        if self.cpu > 50: 
+            self.status = "SURGE"
+            self.add_class("surge")
+        else:
+            self.remove_class("surge")
+
+        # Re-render content
+        self.update(self._render_content())
+
+    def _render_content(self) -> str:
+        cpu_bar = render_block_bar(self.cpu, width=15, theme_color="cyan")
+        return (
+            f"[bold]{self.proc_name}[/] (PID {self.pid})\n"
+            f"CPU: {cpu_bar} {self.cpu:.1f}%\n"
+            f"MEM: [magenta]{self.mem:.1f} MB[/]"
+        )
+
+    def on_click(self) -> None:
+        self.post_message(ProcessSelect(self.pid, self.proc_name))
+
 class Dashboard(Static):
     """A dashboard widget that displays system stats and processes."""
 
@@ -82,27 +151,26 @@ class Dashboard(Static):
 
     def compose(self) -> ComposeResult:
         with Grid(id="dashboard-grid"):
-            # Top row: Gauges
+            # Top row: Gauges (CPU, Memory, GPU, Swap)
             with Horizontal(id="gauges-row"):
                 yield SystemGauge("CPU CORE", "cyan")
                 yield SystemGauge("MEMORY MATRIX", "magenta")
+                yield GPUGauge()
                 yield SystemGauge("SWAP BUFFER", "yellow")
             
-            # Bottom row: Process Table
+            # Bottom row: Process Grid
             with Vertical(id="process-container"):
                 yield Label("ACTIVE PROCESSES [TOP 20]", classes="section-header")
-                yield DataTable(id="process-table")
+                # Use a container for cards that can scroll
+                yield VerticalScroll(id="process-list")
 
     def on_mount(self) -> None:
-        """Set up the table and start refreshing."""
-        table = self.query_one(DataTable)
-        table.cursor_type = "row"
-        table.add_columns("PID", "NAME", "CPU %", "MEM (MB)", "STATUS")
-        self.set_interval(1.0, self.refresh_stats) # Faster refresh for smooth graphs
-        self.refresh_stats()
+        """Start refreshing."""
+        self.set_interval(1.0, self.refresh_stats)
+        self.run_worker(self.refresh_stats())
 
-    def refresh_stats(self) -> None:
-        """Refresh gauges and table."""
+    async def refresh_stats(self) -> None:
+        """Refresh gauges and process cards."""
         # 1. Update Gauges
         cpu_stats = self.monitor.get_cpu_stats()
         mem_stats = self.monitor.get_memory_stats()
@@ -113,45 +181,41 @@ class Dashboard(Static):
             gauges[1].update_val(mem_stats.get('percent', 0))
             gauges[2].update_val(mem_stats.get('swap_percent', 0))
 
-        # 2. Update Table (less frequently maybe? No, keep it sync)
-        table = self.query_one(DataTable)
+        # 2. Update Processes
         procs = self.monitor.get_top_processes(limit=20)
-
-        cursor_row = table.cursor_row
-        table.clear()
         
-        for p in procs:
-            # Fake status for sci-fi feel
-            status = "RUNNING" if p['cpu_percent'] > 0 else "IDLE"
-            if p['cpu_percent'] > 50: status = "SURGE"
-            
-            table.add_row(
-                p['pid'], 
-                p['name'].upper(), 
-                f"{p['cpu_percent']:.1f}", 
-                f"{p['memory_mb']:.1f}", 
-                status,
-                key=str(p['pid'])
-            )
+        process_list = self.query_one("#process-list")
+        
+        # Reuse widget pool
+        cards = process_list.query(ProcessCard)
+        needed = len(procs)
+        existing = len(cards)
+        
+        # Create more if needed
+        if existing < needed:
+            for _ in range(needed - existing):
+                await process_list.mount(ProcessCard(procs[0])) # Dummy init, will be updated
+        
+        # Remove excess if needed
+        if existing > needed:
+            for i in range(needed, existing):
+                await cards[i].remove()
+        
+        # Update content
+        cards = process_list.query(ProcessCard)
+        for i, p in enumerate(procs):
+            if i < len(cards):
+                cards[i].pid = p['pid']
+                cards[i].proc_name = p['name']
+                cards[i].update_info(p)
 
-        if cursor_row < len(table.rows):
-            table.move_cursor(row=cursor_row)
-
-    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+    @on(ProcessSelect)
+    def on_process_select(self, message: ProcessSelect) -> None:
         """Handle process selection."""
-        pid = int(event.row_key.value)
-        name = event.table.get_row(event.row_key)[1]
-
         def handle_kill(kill: bool):
             if kill:
-                self.post_message(ProcessKilled(pid))
+                self.post_message(ProcessKilled(message.pid))
 
-        self.app.push_screen(KillProcessModal(pid, name), handle_kill)
+        self.app.push_screen(KillProcessModal(message.pid, message.name), handle_kill)
 
-    def on_process_killed(self, message: ProcessKilled) -> None:
-        try:
-            os.kill(message.pid, signal.SIGKILL)
-            self.notify(f"TARGET {message.pid} NEUTRALIZED.")
-            self.refresh_stats()
-        except Exception as e:
-            self.notify(f"NEUTRALIZATION FAILED: {e}", severity="error")
+    # Removed local on_process_killed to allow bubbling to App

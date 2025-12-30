@@ -80,16 +80,34 @@ class ChatBubble(Static):
             self.rendered_content = self.display_content
 
     def type_step(self) -> None:
-        """Step the typewriter effect"""
+        """Step the typewriter effect with decoding glitch"""
         if self.current_index < len(self.display_content):
-            # Take a chunk of characters for faster "scanning" feel
-            step = random.randint(2, 5)
+            # Consistent base step with occasional burst for natural feel
+            base_step = 3
+            burst = 2 if random.random() < 0.1 else 0  # 10% chance of burst
+            step = base_step + burst
             self.current_index += step
-            self.rendered_content = self.display_content[:self.current_index]
+            
+            # The "decoded" part
+            visible_part = self.display_content[:self.current_index]
+            
+            # The "encrypted" part (future chars) - show a few random chars
+            remaining_len = len(self.display_content) - self.current_index
+            glitch_len = min(remaining_len, 5) # show up to 5 glitch chars ahead
+            
+            glitch_part = ""
+            if glitch_len > 0:
+                # Use safe chars to avoid markdown injection
+                chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" 
+                for _ in range(glitch_len):
+                    glitch_part += random.choice(chars)
+                glitch_part = f"[dim]{glitch_part}[/]"
+
+            self.rendered_content = visible_part + glitch_part
             self.scroll_visible()
         else:
             self.rendered_content = self.display_content
-            # Stop the timer (Textual handles this automatically when the function returns False or we clear it)
+            # Stop the timer
 
     def compose(self) -> ComposeResult:
         # Use a container for the markdown to allow dynamic updates

@@ -9,7 +9,7 @@ STATIC_CSS = """
 Screen {
     background: $bg-dark;
     color: $text-primary;
-    layers: base matrix;
+    layers: base matrix overlay;
 }
 
 #matrix-rain {
@@ -326,6 +326,169 @@ def get_css() -> str:
         background: $primary;
         color: $bg-dark;
         text-style: bold;
+    }
+
+    /* --- HUD --- */
+    .hud {
+        dock: top;
+        height: 1;
+        width: 100%;
+        background: $bg-dark;
+        color: $dim;
+        content-align: center middle;
+        text-style: bold;
+        layer: overlay;
+    }
+    
+    #hud-bottom {
+        dock: bottom;
+    }
+
+    /* --- LIVING BORDERS --- */
+    .phase-1 { border: heavy $primary; }
+    .phase-2 { border: heavy $secondary; }
+    .phase-3 { border: heavy $accent; }
+
+    /* --- DATA BLOCKS --- */
+    ProcessCard {
+        height: auto;
+        min-height: 4;
+        width: 100%;
+        margin: 0 0 1 0;
+        padding: 0 1;
+        border: solid $dim;
+        background: $bg-dark;
+    }
+
+    ProcessCard:hover {
+        border: solid $primary;
+    }
+    
+    ProcessCard.surge {
+        border: solid $warning;
+    }
+
+    .process-header {
+        width: 100%;
+        color: $text-primary;
+        text-style: bold;
+        padding-bottom: 0;
+    }
+    
+    .process-row {
+        width: 100%;
+        height: 1;
+    }
+
+    /* --- BUTTON STATES --- */
+    Button {
+        background: $bg-light;
+        color: $text-primary;
+        border: solid $dim;
+        padding: 0 2;
+        min-width: 8;
+        transition: background 200ms, border 200ms;
+    }
+
+    Button:hover {
+        background: $primary 20%;
+        border: solid $primary;
+        color: $primary;
+    }
+
+    Button:focus {
+        border: heavy $primary;
+        tint: $primary 10%;
+    }
+
+    Button.-active, Button:active {
+        background: $primary;
+        color: $bg-dark;
+    }
+
+    Button:disabled {
+        background: $bg-dark;
+        color: $dim;
+        border: dashed $dim;
+    }
+
+    Button.-primary {
+        background: $primary;
+        color: $bg-dark;
+        border: solid $primary;
+    }
+
+    Button.-primary:hover {
+        background: $secondary;
+        border: solid $secondary;
+    }
+
+    Button.-error, Button.-danger {
+        background: $error;
+        color: $bg-dark;
+        border: solid $error;
+    }
+
+    Button.-error:hover {
+        background: $warning;
+        border: solid $warning;
+    }
+
+    /* --- LISTVIEW SELECTION --- */
+    ListView {
+        background: transparent;
+        scrollbar-size: 1 1;
+    }
+
+    ListView > ListItem {
+        background: transparent;
+        padding: 0 1;
+        transition: background 150ms;
+    }
+
+    ListView > ListItem:hover {
+        background: $primary 10%;
+    }
+
+    ListView > ListItem.-highlight {
+        background: $primary 20%;
+        border-left: solid $primary;
+    }
+
+    ListView:focus > ListItem.-highlight {
+        background: $primary;
+        color: $bg-dark;
+        text-style: bold;
+    }
+
+    /* --- CRT SCANLINES OVERLAY --- */
+    CRTScanlines {
+        layer: overlay;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+    }
+
+    /* --- GPU GAUGE --- */
+    GPUGauge {
+        width: 1fr;
+        height: 100%;
+        margin: 0 1;
+        border: heavy $dim;
+        background: $bg-dark;
+        padding: 1;
+    }
+
+    GPUGauge:hover {
+        border: heavy $secondary;
+    }
+
+    .gpu-warning {
+        border: heavy $warning;
+    }
+
+    .gpu-critical {
+        border: heavy $error;
     }
     """
 
