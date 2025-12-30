@@ -1,5 +1,6 @@
 """
 Dashboard Widget for Gemmis TUI - GEMINI 3.0 Edition
+# Verified OMEGA Update
 """
 import os
 import signal
