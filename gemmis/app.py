@@ -39,6 +39,7 @@ from .ui.boot import run_boot_sequence
 from .audio import get_audio
 from .ui.effects import HexDump
 from .ui.theme import set_theme, get_current_theme
+from .ui.input import get_random_hint
 
 
 def create_layout(console: Console = None) -> Layout:
@@ -422,10 +423,15 @@ async def async_main(
                             "<prompt>COMMAND_OVERRIDE</prompt> <style fg='#444444'>></style> "
                         )
 
+                        # Get a random hint
+                        hint_text = get_random_hint()
+                        hint_html = HTML(f"<style fg='{Colors.dim}'>  ({hint_text})</style>")
+
                         # patch_stdout ensures this line "floats" above/below graphics correctly
                         user_input = await session.prompt_async(
                             prompt_html,
-                            style=prompt_style
+                            style=prompt_style,
+                            rprompt=hint_html
                         )
                         
                         user_input = user_input.strip()

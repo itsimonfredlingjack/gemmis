@@ -8,6 +8,25 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
 from prompt_toolkit.formatted_text import HTML
+import random
+
+# Rotating hints for the user input line
+HINTS = [
+    "Type /help for a list of commands",
+    "Use /theme to switch visual styles",
+    "Try /persona to change AI personality",
+    "Type /save to snapshot current session",
+    "Monitor resources with /system",
+    "Load files with /ingest <path>",
+    "Use /clear to reset the display",
+    "Type /list to see active models",
+    "Ctrl+C to cancel generation",
+    "Use /export to save chat history",
+]
+
+def get_random_hint() -> str:
+    """Get a random helpful hint for the user."""
+    return random.choice(HINTS)
 
 class GemmisCompleter(Completer):
     """
