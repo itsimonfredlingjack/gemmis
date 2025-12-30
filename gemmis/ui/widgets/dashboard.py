@@ -16,7 +16,7 @@ from ...system_monitor import get_monitor
 
 def render_block_bar(percent: float, width: int = 20, theme_color: str = "green") -> str:
     """Renders a '█▓▒░' style progress bar."""
-    if width < 1: width = 1
+    if width < 1: width = 1 # CRITICAL FIX: Förhindra krasch vid resize
     # Cap percentage at 100
     percent = min(max(percent, 0), 100)
 
@@ -131,7 +131,11 @@ class ProcessCard(Static):
         self.update(self._render_content())
 
     def _render_content(self) -> str:
-        cpu_bar = render_block_bar(self.cpu, width=15, theme_color="cyan")
+        theme_color = "cyan"
+        if self.status == "SURGE":
+            theme_color = "bold #ff0044"
+
+        cpu_bar = render_block_bar(self.cpu, width=15, theme_color=theme_color)
         return (
             f"[bold]{self.proc_name}[/] (PID {self.pid})\n"
             f"CPU: {cpu_bar} {self.cpu:.1f}%\n"

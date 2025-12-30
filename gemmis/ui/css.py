@@ -10,6 +10,8 @@ Screen {
     background: $bg-dark;
     color: $text-primary;
     layers: base matrix overlay;
+    scrollbar-gutter: stable;
+    align-horizontal: center;
 }
 
 #matrix-rain {
@@ -18,6 +20,15 @@ Screen {
     height: 100%;
     layer: matrix;
     background: transparent;
+}
+
+#scanline-overlay {
+    display: block;
+    width: 100%;
+    height: 100%;
+    layer: overlay;
+    background: transparent;
+    opacity: 0.1;
 }
 
 #glitch-overlay {
@@ -333,6 +344,8 @@ def get_css() -> str:
         dock: top;
         height: 1;
         width: 100%;
+        padding-right: 2;
+        box-sizing: border-box;
         background: $bg-dark;
         color: $dim;
         content-align: center middle;

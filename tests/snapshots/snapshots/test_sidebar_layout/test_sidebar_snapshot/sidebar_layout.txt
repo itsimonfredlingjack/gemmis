@@ -1,1 +1,1 @@
-Sidebar(classes='pulse')
+Sidebar(classes='phase-1')

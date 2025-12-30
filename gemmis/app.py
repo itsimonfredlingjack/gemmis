@@ -20,6 +20,7 @@ from .ui.widgets.avatar import AvatarWidget
 from .ui.widgets.matrix import MatrixRain
 from .ui.effects import GlitchOverlay
 from .ui.widgets.particles import ParticleSystem
+from .ui.widgets.scanline import ScanlineOverlay
 from .ui.widgets.dashboard import Dashboard, ProcessKilled
 from .ui.widgets.docker import Docker
 from .ui.widgets.chat import Chat
@@ -47,6 +48,7 @@ class GemmisApp(App):
         
     def compose(self) -> ComposeResult:
         yield Static("╔═ GEMMIS_OS v3.0 ════════════════════════╗", id="hud-top", classes="hud")
+        yield ScanlineOverlay(classes="scanline", id="scanline-overlay")
         yield MatrixRain()
         yield GlitchOverlay(id="glitch-overlay")
         yield ParticleSystem(id="particles")
@@ -148,15 +150,28 @@ class GemmisApp(App):
                         pass
 
                     # Pulse the sidebar and input borders
-                    sidebar = self.query_one(Sidebar)
-                    input_field = self.query_one("#message-input")
+                    try:
+                        sidebar = self.query_one(Sidebar)
+                        input_field = self.query_one("#message-input")
 
-                    sidebar.add_class("pulse")
-                    input_field.add_class("pulse")
-                    await asyncio.sleep(1.0)
-                    sidebar.remove_class("pulse")
-                    input_field.remove_class("pulse")
-                    await asyncio.sleep(1.0)
+                        # Animate sidebar phases as requested
+                        if sidebar.has_class("phase-1"):
+                            sidebar.remove_class("phase-1")
+                            sidebar.add_class("phase-2")
+                        elif sidebar.has_class("phase-2"):
+                            sidebar.remove_class("phase-2")
+                            sidebar.add_class("phase-3")
+                        else:
+                            sidebar.remove_class("phase-3")
+                            sidebar.add_class("phase-1")
+
+                        # Pulse input
+                        input_field.add_class("pulse")
+                        await asyncio.sleep(1.0)
+                        input_field.remove_class("pulse")
+                        await asyncio.sleep(1.0)
+                    except Exception:
+                        await asyncio.sleep(1.0) # wait before retry if elements not found
             except Exception:
                 await asyncio.sleep(5)
 
@@ -256,28 +271,31 @@ class GemmisApp(App):
         self.update_avatar("idle")
 
     @on(ProcessKilled)
-    def on_process_killed(self, event: ProcessKilled):
+    async def on_process_killed(self, event: ProcessKilled):
         try:
+            # 1. Hitta partikelsystemet och explodera!
+            try:
+                particles = self.query_one(ParticleSystem)
+                particles.explode(x=40, y=10, count=15, color="red")
+            except:
+                pass
+
+            # 2. Spela ljud
+            if self.audio.enabled:
+                self.audio.play("success") # Using 'success' as we don't have 'break_glass' mapped yet, or fallback
+
+            # 3. Utför mordet (Linux)
             os.kill(event.pid, signal.SIGKILL)
-            self.notify(f"Process {event.pid} terminated.")
+            self.notify(f"TARGET {event.pid} NEUTRALIZED.")
 
             # Refresh Dashboard immediately
             try:
-                self.query_one(Dashboard).refresh_stats()
+                await self.query_one(Dashboard).refresh_stats()
             except Exception:
                 pass
 
-            # Visual Feedback: Particles
-            try:
-                particles = self.query_one(ParticleSystem)
-                # Position is hard to guess, let's center it or put it in the dashboard area
-                # Since we don't know exact coordinates of the clicked card easily here without event data
-                # We'll just explode in the center of the screen
-                particles.explode(40, 10, count=20, color="red")
-            except:
-                pass
         except Exception as e:
-            self.notify(f"Failed to terminate process {event.pid}: {e}", severity="error")
+            self.notify(f"Execution failed: {e}", severity="error")
 
     def action_toggle_matrix(self) -> None:
         """Toggle the Matrix rain screensaver"""
