@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 from .system_monitor import get_monitor
+from .tools.docker_ops import list_containers, get_container_logs
+from .tools.git_ops import get_git_status, git_commit
 
 # Allowed commands for safety (Expanded for System Administration)
 ALLOWED_COMMANDS = [
@@ -54,6 +56,7 @@ ALLOWED_COMMANDS = [
     "pkill",
     "reboot",
     "shutdown",
+    "docker", # Allow docker command
 ]
 
 # Blocked commands (Reduced to extreme danger only)
@@ -177,14 +180,14 @@ def run_python(code: str) -> dict[str, Any]:
     import json
     import datetime
     import random
-    
+
     # Capture stdout/stderr
     buffer = io.StringIO()
     old_stdout = sys.stdout
     old_stderr = sys.stderr
     sys.stdout = buffer
     sys.stderr = buffer
-    
+
     # Prepare environment
     env = {
         "math": math,
@@ -229,13 +232,13 @@ def run_python(code: str) -> dict[str, Any]:
         # Execute code
         exec(code, env)
         output = buffer.getvalue()
-        
+
         # If plotext was used, check if there's a plot to show
         if "plt" in env:
             # We can't easily know if plot() was called without outputting
             # but usually users will plt.show() which writes to stdout (captured in buffer)
             pass
-            
+
         return {
             "output": output if output else "(No output)",
             "success": True
@@ -567,11 +570,84 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_containers",
+            "description": "Lista Docker containers (ID, namn, status, image)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "all": {
+                        "type": "boolean",
+                        "description": "Visa även stoppade containers",
+                        "default": False
+                    }
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_container_logs",
+            "description": "Hämta loggar från en Docker container",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "container_id": {
+                        "type": "string",
+                        "description": "ID eller namn på containern"
+                    },
+                    "tail": {
+                        "type": "integer",
+                        "description": "Antal rader att hämta (default: 100)",
+                        "default": 100
+                    }
+                },
+                "required": ["container_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_git_status",
+            "description": "Hämta git status och diff statistik",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "git_commit",
+            "description": "Skapa en git commit med alla ändringar (.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Commit-meddelande"
+                    }
+                },
+                "required": ["message"],
+            },
+        },
+    },
 ]
 
 
 # Function handler mapping
 FUNCTION_HANDLERS = {
+    "list_containers": list_containers,
+    "get_container_logs": get_container_logs,
+    "get_git_status": get_git_status,
+    "git_commit": git_commit,
     "run_command": run_command,
     "get_system_info": get_system_info,
     "get_cpu_usage": get_cpu_usage,
@@ -596,6 +672,9 @@ def is_sensitive(tool_name: str, args: dict[str, Any]) -> bool:
         return True
 
     if tool_name == "run_python":
+        return True
+
+    if tool_name == "git_commit":
         return True
 
     if tool_name == "run_command":
