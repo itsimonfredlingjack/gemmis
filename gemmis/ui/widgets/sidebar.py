@@ -39,10 +39,12 @@ class SystemStats(Static):
         """Start the CPU polling worker."""
         self.set_interval(1.0, self.poll_stats)
 
-    def poll_stats(self) -> None:
+    async def poll_stats(self) -> None:
         """Polls system stats and updates reactive properties."""
-        cpu = self.monitor.get_cpu_stats().get("usage", 0.0)
-        ram = self.monitor.get_memory_stats().get("percent", 0.0)
+        cpu_stats = await self.monitor.get_cpu_stats()
+        mem_stats = await self.monitor.get_memory_stats()
+        cpu = cpu_stats.get("usage", 0.0)
+        ram = mem_stats.get("percent", 0.0)
         self.cpu_usage = f"CPU: {cpu:.1f}%"
         self.ram_usage = f"RAM: {ram:.1f}%"
 
