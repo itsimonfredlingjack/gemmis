@@ -132,6 +132,18 @@ class OllamaClient:
             pass
         return None
 
+    async def get_models(self) -> list | None:
+        """Get all models"""
+        try:
+            client = await self._get_client()
+            response = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("models", [])
+        except Exception:
+            pass
+        return None
+
     async def embed(self, prompt: str) -> list[float] | None:
         """Generate embeddings for text using the current model."""
         try:
