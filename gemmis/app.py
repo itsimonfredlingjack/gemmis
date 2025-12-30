@@ -52,7 +52,7 @@ class ToolConfirmationModal(ModalScreen[bool]):
 
 class GemmisApp(App):
     """Main Textual App for GEMMIS"""
-    
+
     CSS = ""
     BINDINGS = [("ctrl+q", "quit", "Quit")]
 
