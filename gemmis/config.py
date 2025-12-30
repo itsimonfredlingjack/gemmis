@@ -15,7 +15,7 @@ DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 DEFAULT_OLLAMA_CHAT_ENDPOINT = f"{DEFAULT_OLLAMA_BASE_URL}/api/chat"
 
 # Default Model settings
-DEFAULT_MODEL_NAME = "gemma3:4b"
+DEFAULT_MODEL_NAME = "qwen3:4b"  # Available: qwen3:4b, qwen2.5-coder:3b
 DEFAULT_TEMPERATURE = 0.3  # Back to stable
 DEFAULT_TOP_P = 0.9
 DEFAULT_MAX_TOKENS = 2048

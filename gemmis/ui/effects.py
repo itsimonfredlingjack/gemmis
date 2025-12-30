@@ -298,7 +298,7 @@ class CRTScanlines(Static):
     def on_mount(self) -> None:
         self.display = False
         if self.flicker:
-            self.set_interval(0.1, self.tick)
+            self.set_interval(0.3, self.tick)  # Slower flicker
 
     def tick(self) -> None:
         if self.display:
@@ -426,7 +426,7 @@ class GlitchOverlay(Static):
 
     def on_mount(self) -> None:
         self.display = False
-        self.set_interval(0.05, self.tick)
+        self.set_interval(0.15, self.tick)  # Slower to reduce CPU
         self.glitch_active = False
         self.intensity = 0.1
 

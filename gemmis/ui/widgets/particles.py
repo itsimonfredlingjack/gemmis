@@ -28,8 +28,8 @@ class Particle(Widget):
         return self.char
 
     def on_mount(self) -> None:
-        # Start animation
-        self.set_interval(0.1, self.animate)
+        # Start animation - slower for performance
+        self.set_interval(0.2, self.animate)
 
     def animate(self) -> None:
         # Move down and maybe side

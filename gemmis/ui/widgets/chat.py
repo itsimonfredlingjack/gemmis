@@ -74,8 +74,8 @@ class ChatBubble(Static):
     def on_mount(self) -> None:
         """Start the typewriter effect if it's the assistant or system"""
         if self.role in ["assistant", "system"]:
-            # Fast typewriter for sci-fi feel
-            self.set_interval(0.01, self.type_step)
+            # Typewriter effect - not too fast to avoid lag
+            self.set_interval(0.03, self.type_step)
         else:
             self.rendered_content = self.display_content
 
