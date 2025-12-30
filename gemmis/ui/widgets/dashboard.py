@@ -2,8 +2,7 @@
 Dashboard Widget for Gemmis TUI - GEMINI 3.0 Edition
 # Verified OMEGA Update
 """
-import os
-import signal
+import asyncio
 from collections import deque
 from textual.app import ComposeResult
 from textual.widgets import Static, Button, Label, Sparkline, ProgressBar
@@ -19,13 +18,10 @@ from .gpu import GPUGauge
 def render_block_bar(percent: float, width: int = 20, theme_color: str = "green") -> str:
     """Renders a '█▓▒░' style progress bar."""
     if width < 1: width = 1
-    # Cap percentage at 100
     percent = min(max(percent, 0), 100)
     
     filled_len = int(width * (percent / 100))
-    # Full blocks
     bar = "█" * filled_len
-    # Add a 'half' block for precision if needed
     remainder = (width * (percent / 100)) - filled_len
     if len(bar) < width:
         if remainder > 0.5:
@@ -33,39 +29,11 @@ def render_block_bar(percent: float, width: int = 20, theme_color: str = "green"
         elif remainder > 0.25:
             bar += "▒"
     
-    # Fill with empty space or weak blocks
     empty_len = width - len(bar)
     bar += "░" * empty_len
     
-    # Truncate if somehow exceeded (shouldn't happen with math above but safety first)
     bar = bar[:width]
     
-    return f"[{theme_color}]{bar}[/]"
-
-def render_block_bar(percent: float, width: int = 20, theme_color: str = "green") -> str:
-    """Renders a '█▓▒░' style progress bar."""
-    if width < 1: width = 1
-    # Cap percentage at 100
-    percent = min(max(percent, 0), 100)
-
-    filled_len = int(width * (percent / 100))
-    # Full blocks
-    bar = "█" * filled_len
-    # Add a 'half' block for precision if needed
-    remainder = (width * (percent / 100)) - filled_len
-    if len(bar) < width:
-        if remainder > 0.5:
-            bar += "▓"
-        elif remainder > 0.25:
-            bar += "▒"
-
-    # Fill with empty space or weak blocks
-    empty_len = width - len(bar)
-    bar += "░" * empty_len
-
-    # Truncate if somehow exceeded (shouldn't happen with math above but safety first)
-    bar = bar[:width]
-
     return f"[{theme_color}]{bar}[/]"
 
 class ProcessKilled(Message):
@@ -116,15 +84,12 @@ class SystemGauge(Static):
         self.value = val
         self.history.append(val)
         
-        # Update text
         val_lbl = self.query_one("#gauge-value", Label)
         val_lbl.update(f"{val:.1f}%")
         
-        # Update bar
         bar = self.query_one("#gauge-bar", ProgressBar)
         bar.progress = val
         
-        # Update sparkline
         spark = self.query_one("#gauge-spark", Sparkline)
         spark.data = list(self.history)
 
@@ -140,13 +105,13 @@ class ProcessCard(Static):
     
     def __init__(self, proc: dict):
         super().__init__(classes="process-card")
-        self.pid = proc['pid']
-        self.proc_name = proc['name']
+        self.pid = proc.get('pid')
+        self.proc_name = proc.get('name')
         self.update_info(proc)
         
     def update_info(self, proc: dict):
-        self.cpu = proc['cpu_percent']
-        self.mem = proc['memory_mb']
+        self.cpu = proc.get('cpu_percent', 0)
+        self.mem = proc.get('memory_mb', 0)
         
         self.status = "RUNNING"
         if self.cpu > 50: 
@@ -155,7 +120,6 @@ class ProcessCard(Static):
         else:
             self.remove_class("surge")
 
-        # Re-render content
         self.update(self._render_content())
 
     def _render_content(self) -> str:
@@ -178,63 +142,65 @@ class Dashboard(Static):
 
     def compose(self) -> ComposeResult:
         with Grid(id="dashboard-grid"):
-            # Top row: Gauges (CPU, Memory, GPU, Swap)
             with Horizontal(id="gauges-row"):
                 yield SystemGauge("CPU CORE", "cyan")
                 yield SystemGauge("MEMORY MATRIX", "magenta")
                 yield GPUGauge()
                 yield SystemGauge("SWAP BUFFER", "yellow")
             
-            # Bottom row: Process Grid
             with Vertical(id="process-container"):
                 yield Label("ACTIVE PROCESSES [TOP 20]", classes="section-header")
-                # Use a container for cards that can scroll
                 yield VerticalScroll(id="process-list")
 
     def on_mount(self) -> None:
         """Start refreshing."""
-        self.set_interval(1.0, self.refresh_stats)
+        self.set_interval(2.0, self.refresh_stats) # Increased interval
         self.run_worker(self.refresh_stats())
 
     async def refresh_stats(self) -> None:
-        """Refresh gauges and process cards."""
+        """Refresh gauges and process cards asynchronously."""
         # 1. Update Gauges
-        cpu_stats = self.monitor.get_cpu_stats()
-        mem_stats = self.monitor.get_memory_stats()
+        cpu_stats, mem_stats, procs = await asyncio.gather(
+            self.monitor.get_cpu_stats(),
+            self.monitor.get_memory_stats(),
+            self.monitor.get_top_processes(limit=20)
+        )
         
-        gauges = self.query(SystemGauge)
-        if len(gauges) >= 3:
-            gauges[0].update_val(cpu_stats.get('percent', 0))
-            gauges[1].update_val(mem_stats.get('percent', 0))
-            gauges[2].update_val(mem_stats.get('swap_percent', 0))
+        try:
+            gauges = self.query(SystemGauge)
+            if len(gauges) >= 3:
+                gauges[0].update_val(cpu_stats.get('usage', 0))
+                gauges[1].update_val(mem_stats.get('percent', 0))
+                gauges[2].update_val(mem_stats.get('swap_percent', 0))
+        except Exception:
+            pass # Gauges might not be ready yet
 
         # 2. Update Processes
-        procs = self.monitor.get_top_processes(limit=20)
-        
-        process_list = self.query_one("#process-list")
-        
-        # Reuse widget pool
-        cards = process_list.query(ProcessCard)
-        needed = len(procs)
-        existing = len(cards)
-        
-        # Create more if needed
-        if existing < needed:
-            for _ in range(needed - existing):
-                await process_list.mount(ProcessCard(procs[0])) # Dummy init, will be updated
-        
-        # Remove excess if needed
-        if existing > needed:
-            for i in range(needed, existing):
-                await cards[i].remove()
-        
-        # Update content
-        cards = process_list.query(ProcessCard)
-        for i, p in enumerate(procs):
-            if i < len(cards):
-                cards[i].pid = p['pid']
-                cards[i].proc_name = p['name']
-                cards[i].update_info(p)
+        try:
+            process_list = self.query_one("#process-list")
+
+            cards = {card.pid: card for card in process_list.query(ProcessCard)}
+
+            # Update existing cards, collect new pids
+            new_pids = []
+            for p in procs:
+                pid = p['pid']
+                if pid in cards:
+                    cards[pid].update_info(p)
+                else:
+                    new_pids.append(p)
+
+            # Remove old cards
+            proc_pids = {p['pid'] for p in procs}
+            for pid, card in cards.items():
+                if pid not in proc_pids:
+                    await card.remove()
+
+            # Add new cards
+            if new_pids:
+                await process_list.mount_all([ProcessCard(p) for p in new_pids])
+        except Exception:
+            pass # Process list might not be ready
 
     @on(ProcessSelect)
     def on_process_select(self, message: ProcessSelect) -> None:
@@ -244,5 +210,3 @@ class Dashboard(Static):
                 self.post_message(ProcessKilled(message.pid))
 
         self.app.push_screen(KillProcessModal(message.pid, message.name), handle_kill)
-
-    # Removed local on_process_killed to allow bubbling to App
