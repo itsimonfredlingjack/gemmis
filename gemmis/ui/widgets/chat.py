@@ -34,8 +34,13 @@ class CodeBlock(Static):
         with Vertical():
             if self.language.strip() != "ascii":
                 with Horizontal(classes="code-toolbar"):
-                    yield Button("Copy", id="copy")
-                    yield Button("Apply", id="apply")
+                    copy_btn = Button("Copy", id="copy")
+                    copy_btn.tooltip = "Copy code to clipboard"
+                    yield copy_btn
+
+                    apply_btn = Button("Apply", id="apply")
+                    apply_btn.tooltip = "Save code to 'applied_code.py'"
+                    yield apply_btn
             yield Markdown(f"```{self.language}\n{self.code}\n```", id="code")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
