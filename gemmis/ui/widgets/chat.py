@@ -1,13 +1,14 @@
 """
 Chat Widgets for Gemmis TUI
 """
-import pyperclip
 import random
+
+import pyperclip
 from textual.app import ComposeResult
-from textual.widgets import Static, Button, Markdown
-from textual.containers import Vertical, Horizontal, VerticalScroll
-from textual.message import Message
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
+from textual.widgets import Button, Markdown, Static
+
 
 class Chat(Static):
     """The main chat widget, containing the chat display and input."""
@@ -34,8 +35,8 @@ class CodeBlock(Static):
         with Vertical():
             if self.language.strip() != "ascii":
                 with Horizontal(classes="code-toolbar"):
-                    yield Button("Copy", id="copy")
-                    yield Button("Apply", id="apply")
+                    yield Button("Copy", id="copy", tooltip="Copy code to clipboard")
+                    yield Button("Apply", id="apply", tooltip="Save code to applied_code.py")
             yield Markdown(f"```{self.language}\n{self.code}\n```", id="code")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
