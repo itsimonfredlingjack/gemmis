@@ -3,17 +3,18 @@ Sidebar Widgets for Gemmis TUI
 """
 
 from textual.app import ComposeResult
-from textual.widgets import Static, Label, ListView, ListItem
 from textual.containers import Vertical
-from textual.reactive import reactive
 from textual.message import Message
+from textual.reactive import reactive
+from textual.widgets import Label, ListItem, ListView, Static
 
-from ...system_monitor import get_monitor
-from ...state import AppState
 from ...ollama_client import OllamaClient
+from ...state import AppState
+from ...system_monitor import get_monitor
 from .avatar import AvatarWidget  # Import the new Avatar
 from .gpu import GPUMiniStats
 from .inference import InferenceMini
+
 
 class ModelLoaded(Message):
     """Event sent when an Ollama model is selected."""
@@ -77,10 +78,14 @@ class OllamaModels(Static):
         list_view = self.query_one("#model-list", ListView)
         try:
             models = await self.client.get_models()
-            for model in models:
-                list_view.append(ListItem(Label(model['name']), name=model['name']))
-        except Exception as e:
-            list_view.append(ListItem(Label(f"Connection Lost")))
+            if not models:
+                list_view.append(ListItem(Label("No models found"), disabled=True))
+                list_view.append(ListItem(Label("Run `ollama pull`"), disabled=True))
+            else:
+                for model in models:
+                    list_view.append(ListItem(Label(model['name']), name=model['name'], tooltip=f"Load {model['name']}"))
+        except Exception:
+            list_view.append(ListItem(Label("Connection Lost")))
 
     def on_list_view_selected(self, event: ListView.Selected):
         """Handle model selection."""
@@ -107,8 +112,11 @@ class SessionList(Static):
         if self.app_state.use_memory and self.app_state.session_manager:
             try:
                 sessions = await self.app_state.session_manager.get_sessions()
-                for session in sessions:
-                    list_view.append(ListItem(Label(session['name']), name=str(session['id'])))
+                if not sessions:
+                    list_view.append(ListItem(Label("No saved sessions"), disabled=True))
+                else:
+                    for session in sessions:
+                        list_view.append(ListItem(Label(session['name']), name=str(session['id']), tooltip=f"ID: {session['id']}"))
             except Exception:
                 list_view.append(ListItem(Label("Memory Corrupted")))
         else:
